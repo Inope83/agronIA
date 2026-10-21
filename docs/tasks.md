@@ -18,22 +18,54 @@ Update the status only when there is evidence that the work has been completed o
 
 ## 3. Phase 1 — Repository and Documentation
 
-- [ ] Review repository structure.
-- [ ] Confirm the active Git branch and working tree.
-- [ ] Review `README.md`.
-- [ ] Review `design.md`.
-- [ ] Review `agents.md`.
-- [ ] Review `skill.md`.
-- [ ] Review `context.md`.
-- [ ] Review `architecture.md`.
-- [ ] Review `roadmap.md`.
-- [ ] Review `dataset.md`.
-- [ ] Review `ai-model.md`.
-- [ ] Review `api.md`.
-- [ ] Review `security.md`.
-- [ ] Review `decisions.md`.
-- [ ] Resolve conflicting requirements.
-- [ ] Define the first prototype scope.
+- [x] Review repository structure.
+- [x] Confirm the active Git branch and working tree.
+- [x] Review `README.md`.
+- [x] Review `design.md`.
+- [x] Review `agents.md`.
+- [x] Review `skill.md`.
+- [x] Review `context.md`.
+- [x] Review `architecture.md`.
+- [x] Review `roadmap.md`.
+- [x] Review `dataset.md`.
+- [x] Review `ai-model.md`.
+- [x] Review `api.md`.
+- [x] Review `security.md`.
+- [x] Review `decisions.md`.
+- [x] Review `ui-ux.md`.
+- [x] Resolve conflicting requirements (documented in audit report).
+- [x] Define the first prototype scope (documented).
+
+**Update (2026-10-22):** Audit Phase 1 selesai. `docs/` di-pull dari `origin/main` (PR #4). Branch `backend-foundation` dibuat. File typo `MASTER_PPROMP.md` dihapus.
+
+## 4. Phase 2 — Dataset Research
+
+- [ ] Identify candidate crop disease datasets.
+- [ ] Record dataset sources and licenses.
+- [ ] Identify supported crops and disease classes.
+- [ ] Compare image quality and class distribution.
+- [ ] Evaluate relevance to Timor-Leste.
+- [ ] Select a candidate dataset for baseline experiments.
+- [ ] Document preprocessing requirements.
+- [ ] Define training, validation, and test splits.
+- [ ] Check for duplicate images and data leakage.
+
+**Completion criteria:** A documented dataset selection supported by source, licensing, class, and quality information.
+
+## 5. Phase 3 — AI Baseline
+
+- [ ] Identify candidate pretrained models.
+- [ ] Verify model licensing and dependencies.
+- [ ] Confirm model input and output formats.
+- [ ] Establish a reproducible evaluation procedure.
+- [ ] Evaluate the baseline on held-out data.
+- [ ] Calculate relevant classification metrics.
+- [ ] Review per-class performance.
+- [ ] Identify unsupported inputs and failure cases.
+- [ ] Document model limitations.
+- [ ] Decide whether fine-tuning is justified.
+
+**Completion criteria:** A reproducible baseline evaluation with documented limitations.
 
 ## 4. Phase 2 — Dataset Research
 
@@ -66,19 +98,21 @@ Update the status only when there is evidence that the work has been completed o
 
 ## 6. Phase 4 — Django Backend
 
-- [ ] Confirm Python and Django compatibility.
-- [ ] Establish backend application structure.
-- [ ] Configure environment variables.
-- [ ] Configure the development database.
-- [ ] Define application data models.
-- [ ] Implement authentication as required.
-- [ ] Implement API input validation.
-- [ ] Implement the agricultural content interface.
-- [ ] Implement the analysis workflow.
-- [ ] Integrate the inference interface.
-- [ ] Implement consistent error responses.
-- [ ] Add backend tests.
-- [ ] Document API behavior.
+- [x] Confirm Python and Django compatibility. (Python 3.14.8, Django 5.2.18, DRF 3.18.3)
+- [x] Establish backend application structure. (apps: `accounts`, `agriculture`, `analysis`, `ai_service`, `common`)
+- [x] Configure environment variables. (`config/env.py`, `.env.example`, split settings base/dev/prod)
+- [x] Configure the development database. (SQLite, migrations applied)
+- [x] Define application data models. (`Crop`, `Disease`, `AgriculturalResource`, `Analysis`, `Profile`)
+- [x] Implement authentication as required. (Token auth: register/login/logout/me)
+- [x] Implement API input validation. (image content validation, crop lookup, auth)
+- [x] Implement the agricultural content interface. (`/api/v1/crops/`, `/api/v1/diseases/`, `/api/v1/resources/`)
+- [x] Implement the analysis workflow. (owner-only, private image access via `/api/v1/analyses/{id}/image/`, sync processing)
+- [x] Integrate the inference interface. (`ai_service` with honest `ModelUnavailable`)
+- [x] Implement consistent error responses. (global exception handler + JSON handlers for 404/500)
+- [x] Add backend tests. (49 tests, all pass)
+- [x] Document API behavior. (`docs/api.md` updated)
+
+**Update (2026-10-22):** Backend foundation implemented on branch `backend-foundation`. No fake AI results; model unavailable returns `503` with `status: "failed"` and history recorded. Private images served via owner-only endpoint (static media serving disabled). Generated files (`db.sqlite3`, `__pycache__`) removed from tracking and added to `.gitignore`. `requirements.txt` added.
 
 **Completion criteria:** The backend passes relevant tests and can process valid requests according to the agreed API contract.
 

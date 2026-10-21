@@ -224,6 +224,93 @@ Document model performance using held-out evaluation data and pursue local valid
 - Document dataset limitations.
 - Do not invent accuracy figures or field outcomes.
 
+## ADR-014: Token Authentication for the API
+
+**Status:** Implemented
+
+**Date:** 2026-10-22
+
+### Context
+The Flutter client needs to authenticate with the Django backend. The
+project requires secure handling of tokens on mobile devices and simple
+integration with a REST API.
+
+### Decision
+Use Django REST Framework token authentication (`rest_framework.authtoken`).
+Send tokens via `Authorization: Token <token>` header. Support
+registration, login, logout (token revocation), and a `me` endpoint.
+
+### Consequences
+- **Benefits:** Stateless per-request authentication, easy to revoke,
+  works well with Flutter HTTP clients, no CSRF complexity for API calls.
+- **Trade-offs:** Tokens do not auto-expire. The client must store them
+  securely. Logout deletes the token on the server.
+- **Implementation:** Token created on register and login. Logout calls
+  `Token.objects.filter(user=request.user).delete()`. `SessionAuthentication`
+  remains enabled for the browsable API in development.
+
+### Verification
+Automated tests verify register/login/me/logout flows, password hashing,
+token revocation, and unauthenticated access denial.
+
+## ADR-015: Private Image Storage and Owner-Only Access
+
+**Status:** Implemented
+
+**Date:** 2026-10-22
+
+### Context
+Uploaded crop images may contain farm details. Serving them via Django's
+static file serving (`settings.MEDIA_URL`) would allow anyone with the URL
+to access them.
+
+### Decision
+Do not serve media via `static()`. Images are stored under `media/analyses/`
+with UUID-based filenames. Access is only possible through
+`GET /api/v1/analyses/{id}/image/`, which requires authentication and
+verifies ownership. The response includes `Cache-Control: private, no-store`.
+Filenames are generated server-side.
+
+### Consequences
+- **Benefits:** Prevents unauthorized access to private images, reduces
+  metadata leakage from filenames.
+- **Trade-offs:** The client must authenticate to load images.
+- **Implementation:** `AnalysisImageView` checks ownership; `image_url` in
+  analysis responses points to the private endpoint.
+
+### Verification
+Tests verify unauthenticated, cross-user, and owner access; serialized
+URLs use the private endpoint, not `/media/`.
+
+## ADR-016: Honest AI Inference Without Placeholder Predictions
+
+**Status:** Implemented
+
+**Date:** 2026-10-22
+
+### Context
+The project explicitly forbids fake AI predictions. No dataset or trained
+model has been selected yet.
+
+### Decision
+Create a stable `ai_service` interface with `InferenceService`,
+`ClassRegistry` (loaded from `ai_service/classes.json`), and structured
+exceptions. When the model is missing, unconfigured, or classes are empty,
+raise `ModelUnavailable`. The analysis endpoint catches this, marks the
+record as `failed`, saves the reason, and returns HTTP 503. The API never
+fabricates labels or confidence scores.
+
+### Consequences
+- **Benefits:** Complies with MASTER_PROMPT Rule B and Rule D.
+- **Trade-offs:** The analysis feature is not usable end-to-end until a
+  model is selected and evaluated.
+- **Implementation:** `classes.json` starts empty with documentation.
+
+### Verification
+Tests verify `ModelUnavailable` when `AI_MODEL_PATH` is unset or the file
+is missing, and that analysis records become `failed` with no fake
+prediction data.
+
 ## 3. Future Decision Template
 
 Use the following structure when a new significant technical decision is made.

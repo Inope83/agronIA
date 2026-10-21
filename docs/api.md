@@ -2,9 +2,12 @@
 
 ## 1. Purpose
 
-This document defines the proposed API contract between the Agronia Flutter application and its Django backend.
+This document defines the API contract between the Agronia Flutter application and its Django backend.
 
-All endpoints in this document are proposed. They must not be treated as implemented or available until confirmed in the source code.
+Endpoint status is recorded per table. Endpoints marked **Implemented** have
+been implemented and covered by automated tests in `ai-model/*/tests.py`.
+Endpoints marked **Proposed** are still design intentions and must not be
+assumed to exist.
 
 ## 2. API Principles
 
@@ -19,101 +22,170 @@ All endpoints in this document are proposed. They must not be treated as impleme
 
 ## 3. Authentication
 
-The authentication mechanism has not yet been selected.
+**Status: Implemented.** Token-based authentication using DRF's
+`rest_framework.authtoken`.
 
-Possible approaches include Django REST Framework authentication options or token-based authentication.
+Clients send the token on every protected request:
 
-The final choice must consider Flutter integration, token storage, session lifecycle, and deployment requirements.
+```text
+Authorization: Token <token>
+```
 
-## 4. Proposed Endpoints
+**Reasoning.** A mobile client talking to a JSON API integrates more simply
+with a bearer token than with a session cookie, because a session cookie
+requires the client to handle CSRF tokens and because browsers/clients can
+leak cookies to unrelated hosts. Tokens are revocable individually, which
+makes logout deterministic.
 
-| Method | Proposed endpoint | Purpose |
-|---|---|---|
-| POST | `/api/v1/auth/register/` | Register a user |
-| POST | `/api/v1/auth/login/` | Authenticate a user |
-| POST | `/api/v1/auth/logout/` | End the supported authentication session |
-| GET | `/api/v1/auth/me/` | Retrieve the current user's profile |
-| GET | `/api/v1/crops/` | List supported crops |
-| GET | `/api/v1/diseases/` | List documented disease information |
-| POST | `/api/v1/analyses/` | Submit an image for analysis |
-| GET | `/api/v1/analyses/` | List the current user's analysis history |
-| GET | `/api/v1/analyses/{id}/` | Retrieve an authorized analysis |
-| GET | `/api/v1/resources/` | List agricultural resources |
+**Consequences.**
 
-These endpoint names are a starting proposal. Registration, logout, and authentication routes depend on the selected authentication implementation.
+- Tokens are stored by the server and never expire automatically. Logout
+  deletes the token, which revokes access immediately.
+- The Flutter client must store the token in secure storage, not in plain
+  preferences, once that feature is implemented.
+- The token is the only credential sent. Passwords are never returned by any
+  endpoint.
+- `SessionAuthentication` remains enabled so the browsable API in Django
+  admin can be used during development.
+
+## 4. Endpoints
+
+| Method | Endpoint | Purpose | Status |
+|---|---|---|---|
+| GET | `/api/v1/` | List available endpoints and API version | Implemented |
+| POST | `/api/v1/auth/register/` | Register a user | Implemented |
+| POST | `/api/v1/auth/login/` | Authenticate a user, returns a token | Implemented |
+| POST | `/api/v1/auth/logout/` | Revoke the current token | Implemented |
+| GET | `/api/v1/auth/me/` | Retrieve the current user's profile | Implemented |
+| GET | `/api/v1/crops/` | List supported crops | Implemented |
+| GET | `/api/v1/crops/{code}/` | Retrieve one crop | Implemented |
+| GET | `/api/v1/diseases/` | List documented disease information | Implemented |
+| GET | `/api/v1/diseases/{code}/` | Retrieve one disease record | Implemented |
+| GET | `/api/v1/resources/` | List agricultural resources | Implemented |
+| POST | `/api/v1/analyses/` | Submit an image for analysis | Implemented |
+| GET | `/api/v1/analyses/` | List the current user's analysis history | Implemented |
+| GET | `/api/v1/analyses/{id}/` | Retrieve an authorized analysis | Implemented |
+| GET | `/api/v1/analyses/{id}/image/` | Retrieve the uploaded image, owner only | Implemented |
 
 ## 5. Image Analysis Request
 
-**Proposed endpoint:** `POST /api/v1/analyses/`
+**Endpoint:** `POST /api/v1/analyses/`
 
 **Content type:** `multipart/form-data`
 
-Proposed fields:
+**Authentication:** required.
+
+Fields:
 
 | Field | Type | Required |
 |---|---|---|
 | `image` | Image file | Yes |
-| `crop_type` | Supported crop identifier | To be decided |
+| `crop` | Supported crop identifier (slug, for example `padi`) | No |
 
-The server must validate the uploaded image, enforce configured size limits, and reject invalid or unsupported inputs.
+`crop` is optional while the set of crops that the model can handle is still
+being decided through dataset research. When supplied, it must reference an
+active crop; unknown values are rejected.
 
-## 6. Illustrative Success Response
+The server validates the uploaded image by inspecting the file content, not
+the filename extension or the client-supplied MIME type. The following rules
+are enforced (configurable via `DJANGO_MAX_UPLOAD_SIZE_MB`):
 
-The following JSON is an example of a proposed response contract, not an actual model result.
+- Maximum file size.
+- Accepted formats: JPEG, PNG, WEBP.
+- Minimum dimension of 64 pixels per side.
+- Maximum of 40 million pixels, to limit decompression bomb impact.
+
+## 6. Analysis Response
+
+**Status: Implemented.** The following is the actual response shape produced
+by the backend.
 
 ```json
 {
-  "id": "example-analysis-id",
+  "id": "3f1c0a54-6b2e-4f1a-9c77-1d4e0a1b2c3d",
   "status": "completed",
+  "crop": "padi",
+  "predicted_disease": "blast-padi",
+  "confidence": 0.82,
+  "model_version": "plantvillage-mobilenetv2-v1",
+  "message": "Hasil ini merupakan perkiraan awal. Periksa gejala pada tanaman dan konsultasikan dengan tenaga pertanian bila masalah berlanjut.",
+  "image_url": "/api/v1/analyses/3f1c0a54-6b2e-4f1a-9c77-1d4e0a1b2c3d/image/",
   "prediction": {
-    "class_id": "example-class",
-    "label": "Example disease label",
-    "confidence": null
+    "class_id": "blast-padi",
+    "label": "Blast Padi",
+    "confidence": 0.82,
+    "model_version": "plantvillage-mobilenetv2-v1",
+    "is_confident": true
   },
-  "model_version": "example-version",
-  "message": "This result is preliminary and may require expert review."
+  "created_at": "2026-10-22T00:10:39.500207+08:00"
 }
 ```
 
-The example identifiers and labels are placeholders. The actual response schema must be finalized after selecting the model and database design.
+The identifiers and labels above are **illustrative placeholders**. The
+backend currently has no model, so a real response always has
+`status: "failed"` and `prediction: null` until a model is selected,
+trained, and evaluated.
 
-The `confidence` field should only contain a meaningful value when the selected inference implementation provides one. The API must not fabricate scores.
+`confidence` is only populated when the inference implementation actually
+produces a score. The API never fabricates confidence values.
+
+`is_confident` compares the confidence against `AI_CONFIDENCE_THRESHOLD`.
+When it is `false`, the `message` explains that the result is not certain
+and recommends taking a clearer photo or consulting an extension worker.
 
 ## 7. Analysis Status
 
-A synchronous implementation may return a completed result directly.
+**Status: Implemented.** Analysis is processed synchronously inside the
+request. The `status` field is one of:
 
-If processing is later implemented asynchronously, the API may use explicit states such as:
-- `pending`
-- `processing`
-- `completed`
-- `failed`
+- `pending` — record created, inference not started.
+- `processing` — inference running.
+- `completed` — inference finished, a result is available.
+- `failed` — inference could not complete. The `message` explains why.
 
-Do not introduce asynchronous status handling unless the backend actually supports it.
+Do not introduce asynchronous status handling unless the backend actually
+supports it.
 
-## 8. Proposed Error Format
+## 8. Error Format
+
+**Status: Implemented.** Every error response, including Django-level 404
+and 500 responses on `/api/` paths, uses this structure.
 
 ```json
 {
   "error": {
-    "code": "invalid_image",
-    "message": "The submitted image could not be processed."
+    "code": "invalid_request",
+    "message": "Data yang dikirim tidak valid.",
+    "details": {
+      "image": ["Unggah gambar yang valid."]
+    }
   }
 }
 ```
 
-This is an illustrative structure. The actual error format should be consistent across endpoints.
+`details` is only present when there are field-level problems.
 
-Potential error categories:
-- Invalid request.
-- Unsupported file.
-- File too large.
-- Authentication required.
-- Permission denied.
-- Resource not found.
-- Model unavailable.
-- Processing timeout.
-- Internal server error.
+Error codes in use:
+
+| Code | HTTP status | Meaning |
+|---|---|---|
+| `invalid_request` | 400 | Request body or field validation failed |
+| `invalid_credentials` | 401 | Username or password is wrong |
+| `authentication_required` | 401 | Authentication is missing or invalid |
+| `permission_denied` | 403 | Authenticated but not allowed |
+| `not_found` | 404 | Resource does not exist or is not owned by the caller |
+| `method_not_allowed` | 405 | Method not supported by the endpoint |
+| `file_too_large` | 413 | Upload exceeds the configured limit |
+| `unsupported_media_type` | 415 | Unsupported media type |
+| `rate_limit_exceeded` | 429 | Rate limit exceeded |
+| `model_unavailable` | 503 | The AI model is missing or could not be loaded |
+| `unsupported_image` | 400 | The file is not a usable image |
+| `unsupported_crop` | 400 | The requested crop is not supported |
+| `unsupported_class` | 400 | The model produced a class that is not registered |
+| `internal_server_error` | 500 | Unexpected server failure |
+
+Messages are written for end users, not developers. Stack traces, internal
+paths, and configuration values are never included.
 
 ## 9. HTTP Status Codes
 
@@ -133,17 +205,26 @@ Use status codes according to the actual failure or success condition.
 | 500 | Unexpected server failure |
 | 503 | Service unavailable |
 
-The exact codes depend on endpoint semantics and the configured framework behavior.
-
 ## 10. Analysis History and Permissions
 
-Analysis history should be restricted to the authenticated user who owns the records, unless a specific authorized administrative workflow applies.
+**Status: Implemented.** Analysis history is restricted to the authenticated
+user who owns the records. Object-level ownership is enforced at the query
+level (`Analysis.objects.filter(user=request.user)`) and at the detail
+view.
+
+The API does not allow users to retrieve another user's private images or
+analysis records by changing an identifier. Attempts return `404` to avoid
+leaking the existence of records that belong to other users.
+
+Uploaded images are served through a dedicated endpoint that also checks
+ownership and enforces `private, no-store` caching headers. Static media
+serving is **disabled** for privacy reasons.
 
 Administrative access must be explicitly defined and tested.
 
-The API must not allow users to retrieve another user's private images or analysis records by changing an identifier.
-
 ## 11. Validation Requirements
+
+**Status: Implemented.**
 
 Validate:
 - Authentication and permissions.
@@ -156,19 +237,28 @@ Validate:
 - Any user-provided text.
 
 Do not rely solely on a client-provided MIME type or filename extension.
+Image validation inspects the actual file contents with Pillow.
 
 ## 12. API Documentation and Testing
 
-Before implementation is considered complete:
-- Finalize request and response schemas.
-- Document authentication requirements.
-- Document expected errors.
-- Test valid requests.
-- Test malformed requests.
-- Test permission boundaries.
-- Verify consistency between Django and Flutter.
-- Update this document when the contract changes.
+**Status: Implemented.**
+
+- Request and response schemas are documented and tested.
+- Authentication requirements are documented and tested.
+- Expected errors are documented and tested.
+- Valid requests tested.
+- Malformed requests tested.
+- Permission boundaries tested (unauthenticated, cross-user access).
+- Image format/content validation tested.
+- Behaviour when the AI model is unavailable tested (returns `503`,
+  `status: "failed"`, no fake prediction).
+- Error handler returns consistent JSON format.
+- Tests run with `python manage.py test` from `ai-model/`.
 
 ## 13. Current Status
 
-This file defines a proposed API contract. No endpoint should be assumed to exist until it is implemented and verified.
+**Backend API foundation is implemented and tested** on branch
+`backend-foundation`. Endpoints are implemented under `/api/v1/` with
+token authentication, consistent error formatting, strict image
+validation, owner-only access to history and private images, and an AI
+inference interface that fails honestly when no model is available.

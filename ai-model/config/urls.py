@@ -1,22 +1,32 @@
-"""
-URL configuration for config project.
+"""Konfigurasi URL utama proyek Agronia.
 
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.2/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
+Semua endpoint API berada di bawah prefiks `/api/v1/` sesuai
+`docs/api.md` bagian "API Principles" dan ADR-009.
 """
+
+from __future__ import annotations
+
+from django.conf import settings
 from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
+
+from common.handlers import not_found, server_error_500
+from common.views import ApiIndexView
+
+handler404 = not_found
+handler500 = server_error_500
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path("admin/", admin.site.urls),
+    path("api/v1/", ApiIndexView.as_view(), name="api-index"),
+    path("api/v1/auth/", include("accounts.urls")),
+    path("api/v1/", include("agriculture.urls")),
+    path("api/v1/", include("analysis.urls")),
 ]
+
+# Catatan: berkas unggahan pengguna TIDAK dilayani lewat `static()`.
+# Folder MEDIA_ROOT bersifat privat dan hanya bisa diakses melalui
+# endpoint yang memeriksa kepemilikan, misalnya
+# `/api/v1/analyses/<id>/image/`. Menambahkan `static(settings.MEDIA_URL, ...)`
+# di sini akan membuat gambar bisa dibuka siapa saja yang tahu tautannya,
+# melanggar `docs/security.md` bagian "File Upload Security".
