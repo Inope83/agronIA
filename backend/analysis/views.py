@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import logging
 import mimetypes
+from pathlib import Path
+from typing import Any
 
 import requests
 from django.conf import settings
@@ -26,10 +28,60 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from agriculture.models import Disease
 from analysis.models import Analysis
 from analysis.serializers import AnalysisCreateSerializer, AnalysisSerializer
 
 logger = logging.getLogger(__name__)
+
+
+class InferenceError(Exception):
+    """Kegagalan inferensi dengan kode error dan status HTTP yang jelas."""
+
+    code = "inference_failed"
+    http_status = status.HTTP_502_BAD_GATEWAY
+
+
+class AiServiceUnavailable(InferenceError):
+    """Layanan AI tidak dapat dijangkau atau tidak merespons."""
+
+    code = "service_unavailable"
+    http_status = status.HTTP_503_SERVICE_UNAVAILABLE
+
+
+class AiModelUnavailable(InferenceError):
+    """Layanan AI berjalan tetapi model belum tersedia."""
+
+    code = "model_unavailable"
+    http_status = status.HTTP_503_SERVICE_UNAVAILABLE
+
+
+class InternalProcessingError(InferenceError):
+    """Kesalahan tak terduga di sisi backend."""
+
+    code = "internal_server_error"
+    http_status = status.HTTP_500_INTERNAL_SERVER_ERROR
+
+
+def _extract_service_error(payload: Any) -> tuple[str | None, str | None]:
+    """Ambil kode dan pesan error dari respons AI service."""
+    if not isinstance(payload, dict):
+        return None, None
+
+    error = payload.get("error")
+    if error is None:
+        detail = payload.get("detail")
+        if isinstance(detail, dict):
+            error = detail.get("error", detail)
+    if not isinstance(error, dict):
+        return None, None
+
+    code = error.get("code")
+    message = error.get("message")
+    return (
+        code if isinstance(code, str) else None,
+        message if isinstance(message, str) else None,
+    )
 
 
 class AnalysisViewSet(viewsets.ViewSet):
@@ -63,8 +115,16 @@ class AnalysisViewSet(viewsets.ViewSet):
 
         try:
             self._run_inference(analysis)
-        except Exception as exc:
-            return self._fail(analysis, exc, status.HTTP_503_SERVICE_UNAVAILABLE)
+        except InferenceError as exc:
+            return self._fail(analysis, exc)
+        except Exception:
+            logger.exception("Kesalahan tak terduga saat menganalisis %s", analysis.id)
+            return self._fail(
+                analysis,
+                InternalProcessingError(
+                    "Terjadi kesalahan internal saat memproses analisis."
+                ),
+            )
 
         analysis.refresh_from_db()
         return Response(
@@ -77,50 +137,99 @@ class AnalysisViewSet(viewsets.ViewSet):
         ai_url = getattr(settings, "AI_SERVICE_URL", "http://localhost:8001")
         timeout = getattr(settings, "AI_SERVICE_TIMEOUT", 30)
 
+        content_type, _ = mimetypes.guess_type(analysis.image.name)
+        content_type = content_type or "application/octet-stream"
+
         try:
             with analysis.image.open("rb") as image_file:
-                files = {"file": (analysis.image.name, image_file.read(), "image/jpeg")}
-            resp = requests.post(f"{ai_url}/predict", files=files, timeout=timeout)
+                files = {
+                    "file": (
+                        Path(analysis.image.name).name,
+                        image_file,
+                        content_type,
+                    )
+                }
+                response = requests.post(
+                    f"{ai_url}/predict",
+                    files=files,
+                    timeout=timeout,
+                )
         except requests.exceptions.ConnectionError as exc:
-            raise Exception(
-                "AI service tidak dapat dijangkau. Pastikan service AI berjalan di "
-                f"{ai_url}."
+            raise AiServiceUnavailable(
+                "Layanan analisis AI tidak dapat dijangkau. Silakan coba lagi nanti."
             ) from exc
         except requests.exceptions.Timeout as exc:
-            raise Exception("Permintaan ke AI service melebihi batas waktu.") from exc
+            raise AiServiceUnavailable(
+                "Layanan analisis AI tidak merespons tepat waktu. Silakan coba lagi."
+            ) from exc
 
-        if resp.status_code == 503:
-            data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
-            err = data.get("error") or {}
-            raise Exception(err.get("message") or "Layanan analisis AI tidak tersedia.")
+        if response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE:
+            code, message = _extract_service_error(self._safe_json(response))
+            if code == "model_unavailable":
+                raise AiModelUnavailable(
+                    message or "Model AI belum tersedia untuk melakukan analisis."
+                )
+            raise AiServiceUnavailable(
+                message or "Layanan analisis AI sedang tidak tersedia."
+            )
 
-        if resp.status_code != 200:
-            raise Exception("AI service mengembalikan respons yang tidak valid.")
+        if response.status_code != status.HTTP_200_OK:
+            logger.warning(
+                "AI service mengembalikan status %s untuk analisis %s",
+                response.status_code,
+                analysis.id,
+            )
+            raise InferenceError(
+                "Layanan analisis AI mengembalikan respons yang tidak valid."
+            )
 
-        try:
-            result = resp.json()
-        except ValueError as exc:
-            raise Exception("Respons AI service bukan JSON yang valid.") from exc
+        result = self._safe_json(response)
+        if not isinstance(result, dict):
+            raise InferenceError("Respons layanan AI bukan JSON yang valid.")
 
-        prediction = result.get("prediction") or {}
+        prediction = result.get("prediction")
+        if not isinstance(prediction, dict):
+            raise InferenceError("Layanan AI tidak mengembalikan prediksi.")
+
+        class_id = prediction.get("class_id")
+        if not isinstance(class_id, str) or not class_id:
+            raise InferenceError("Layanan AI tidak mengembalikan kelas prediksi.")
+
+        disease = Disease.objects.filter(code=class_id, is_active=True).first()
+        if disease is None:
+            logger.warning(
+                "Kelas '%s' dari AI service belum terdaftar untuk analisis %s",
+                class_id,
+                analysis.id,
+            )
+            raise InferenceError(
+                "Model menghasilkan kelas yang belum terdaftar di sistem."
+            )
+
+        confidence = prediction.get("confidence")
+        if confidence is not None:
+            if (
+                isinstance(confidence, bool)
+                or not isinstance(confidence, (int, float))
+                or not 0.0 <= float(confidence) <= 1.0
+            ):
+                raise InferenceError(
+                    "Nilai confidence dari layanan AI tidak valid."
+                )
+            confidence = float(confidence)
 
         analysis.status = Analysis.Status.COMPLETED
-        analysis.confidence = prediction.get("confidence")
-        analysis.model_version = prediction.get("model_version") or ""
+        analysis.predicted_disease = disease
+        analysis.confidence = confidence
+        analysis.model_version = str(prediction.get("model_version") or "")[:100]
         analysis.message = result.get("message") or (
             "Hasil ini merupakan perkiraan awal. Periksa gejala pada tanaman "
             "dan konsultasikan dengan tenaga pertanian bila masalah berlanjut."
         )
-
-        # Jika AI service mengembalikan class_id, kita simpan sebagai info di message
-        # Karena model mapping butuh research lebih lanjut
-        class_id = prediction.get("class_id")
-        if class_id:
-            analysis.message = f"[{class_id}] {analysis.message}"
-
         analysis.save(
             update_fields=[
                 "status",
+                "predicted_disease",
                 "confidence",
                 "model_version",
                 "message",
@@ -128,18 +237,28 @@ class AnalysisViewSet(viewsets.ViewSet):
             ]
         )
 
-    def _fail(self, analysis: Analysis, exc: Exception, http_status: int) -> Response:
+    @staticmethod
+    def _safe_json(response: requests.Response) -> Any:
+        """Baca JSON tanpa melempar error bila isinya bukan JSON."""
+        content_type = response.headers.get("content-type", "")
+        if not content_type.startswith("application/json"):
+            return None
+        try:
+            return response.json()
+        except ValueError:
+            return None
+
+    def _fail(self, analysis: Analysis, exc: InferenceError) -> Response:
         """Catat kegagalan dan kembalikan error yang konsisten."""
         analysis.status = Analysis.Status.FAILED
         analysis.message = str(exc)
         analysis.save(update_fields=["status", "message", "updated_at"])
 
-        logger.warning("Analisis %s gagal: %s", analysis.id, exc)
+        logger.warning("Analisis %s gagal (%s): %s", analysis.id, exc.code, exc)
 
-        error_code = "service_unavailable"
         return Response(
-            {"error": {"code": error_code, "message": str(exc)}},
-            status=http_status,
+            {"error": {"code": exc.code, "message": str(exc)}},
+            status=exc.http_status,
         )
 
 

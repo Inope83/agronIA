@@ -55,8 +55,9 @@ Flutter Mobile Application
            |
            +------ Analysis Management
            |
+           | HTTP (AI_SERVICE_URL)
            v
-     AI Inference Interface
+     FastAPI AI Service (ai/)
            |
            v
      Computer Vision Model
@@ -68,7 +69,8 @@ Django Backend
       +------ Controlled Image Storage
 ```
 
-The diagram describes intended relationships. It does not establish that these components already exist.
+The diagram describes intended relationships. The backend/AI split is
+implemented as described in ADR-017; the model itself is not yet available.
 
 ## 4. Flutter Client
 
@@ -107,8 +109,10 @@ These are proposed module boundaries, not confirmed existing folders.
 - `accounts`: users, profiles, and authentication.
 - `agriculture`: crop, disease, and educational content.
 - `analysis`: image submissions and prediction records.
-- `ai_service`: model loading and inference integration.
 - `common`: shared utilities and error-handling conventions.
+
+The inference component is not a Django app. It runs as a separate FastAPI
+project in `ai/` and is reached over HTTP (ADR-017).
 
 Create only the modules needed by the agreed implementation scope.
 
@@ -132,7 +136,9 @@ The inference component should expose a stable internal interface.
 - Provide a clear mechanism for replacing the model.
 - Do not interpret model confidence as a guarantee of correctness.
 
-The initial implementation may use a Python module in the Django project. A separate inference server should be introduced only if performance, scaling, or deployment requirements justify it.
+Inference runs as a separate FastAPI service (`ai/`) and is called over
+HTTP by the `analysis` app. The Django project must not import model code,
+weights, training dependencies, or dataset tooling. See ADR-017.
 
 ## 7. Database
 
@@ -211,6 +217,7 @@ The deployment arrangement has not been selected.
 
 A possible production setup includes:
 - A hosted Django application.
+- The separately deployed FastAPI inference service (`ai/`).
 - A compatible Python inference runtime.
 - A production database.
 - Controlled media storage.

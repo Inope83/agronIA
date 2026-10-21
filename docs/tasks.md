@@ -99,7 +99,7 @@ Update the status only when there is evidence that the work has been completed o
 ## 6. Phase 4 — Django Backend
 
 - [x] Confirm Python and Django compatibility. (Python 3.14.8, Django 5.2.18, DRF 3.18.3)
-- [x] Establish backend application structure. (apps: `accounts`, `agriculture`, `analysis`, `ai_service`, `common`)
+- [x] Establish backend application structure. (apps: `accounts`, `agriculture`, `analysis`, `common`; inference moved to `ai/`, ADR-017)
 - [x] Configure environment variables. (`config/env.py`, `.env.example`, split settings base/dev/prod)
 - [x] Configure the development database. (SQLite, migrations applied)
 - [x] Define application data models. (`Crop`, `Disease`, `AgriculturalResource`, `Analysis`, `Profile`)
@@ -107,12 +107,18 @@ Update the status only when there is evidence that the work has been completed o
 - [x] Implement API input validation. (image content validation, crop lookup, auth)
 - [x] Implement the agricultural content interface. (`/api/v1/crops/`, `/api/v1/diseases/`, `/api/v1/resources/`)
 - [x] Implement the analysis workflow. (owner-only, private image access via `/api/v1/analyses/{id}/image/`, sync processing)
-- [x] Integrate the inference interface. (`ai_service` with honest `ModelUnavailable`)
+- [x] Integrate the inference interface. (FastAPI `ai/` service over HTTP; honest `model_unavailable`)
 - [x] Implement consistent error responses. (global exception handler + JSON handlers for 404/500)
-- [x] Add backend tests. (49 tests, all pass)
+- [x] Add backend tests. (43 tests, all pass)
 - [x] Document API behavior. (`docs/api.md` updated)
 
 **Update (2026-10-22):** Backend foundation implemented on branch `backend-foundation`. No fake AI results; model unavailable returns `503` with `status: "failed"` and history recorded. Private images served via owner-only endpoint (static media serving disabled). Generated files (`db.sqlite3`, `__pycache__`) removed from tracking and added to `.gitignore`. `requirements.txt` added.
+
+**Update (2026-10-22, ADR-017):** Backend and AI service are now separate
+projects: `backend/` (Django) and `ai/` (FastAPI). The duplicate `ai_old/`
+tree and circular `backend/media` symlink were removed. AI errors are mapped
+to `service_unavailable`, `model_unavailable`, or `inference_failed`; the
+backend tests mock the AI service instead of depending on a local process.
 
 **Completion criteria:** The backend passes relevant tests and can process valid requests according to the agreed API contract.
 

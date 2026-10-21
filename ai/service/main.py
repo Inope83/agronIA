@@ -1,32 +1,27 @@
 from __future__ import annotations
 
-import io
-import os
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 app = FastAPI(title="Agronia AI Service", version="1.0.0")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-WEIGHTS_DIR = Path(__file__).resolve().parent.parent / "weights"
-CLASSES_PATH = Path(__file__).resolve().parent.parent / "classes.json"
+PROJECT_DIR = Path(__file__).resolve().parent.parent
+WEIGHTS_DIR = PROJECT_DIR / "weights"
+CLASSES_PATH = PROJECT_DIR / "classes.json"
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="AI_",
+        env_file=PROJECT_DIR / ".env",
+        extra="ignore",
+    )
+
     model_path: str = ""
-    confidence_threshold: float = 0.6
     image_size: int = 224
 
 
@@ -39,36 +34,43 @@ class PredictResponse(BaseModel):
     message: str
 
 
+def _model_file_available() -> bool:
+    return bool(settings.model_path) and Path(settings.model_path).is_file()
+
+
 @app.get("/health")
 def health():
     return {
         "status": "ok",
-        "model_path": settings.model_path or None,
-        "weights_dir": str(WEIGHTS_DIR),
-        "has_classes": CLASSES_PATH.exists(),
+        "model_available": _model_file_available(),
+        "classes_registered": CLASSES_PATH.exists(),
     }
 
 
 @app.post("/predict", response_model=PredictResponse)
 async def predict(file: UploadFile = File(...)):
-    model_path = settings.model_path or os.getenv("AI_MODEL_PATH", "")
-    if not model_path or not Path(model_path).is_file():
+    if not _model_file_available():
         raise HTTPException(
             status_code=503,
             detail={
                 "error": {
                     "code": "model_unavailable",
-                    "message": "AI_MODEL_PATH belum diatur atau berkas model tidak ditemukan.",
+                    "message": (
+                        "AI_MODEL_PATH belum diatur atau berkas model tidak ditemukan."
+                    ),
                 }
             },
         )
-    # Belum ada model sungguhan, jadi kita tetap jujur seperti di Django
+
     raise HTTPException(
         status_code=503,
         detail={
             "error": {
                 "code": "model_unavailable",
-                "message": "Model AI belum di-load. Isi weights/ dan classes.json sesuai dokumentasi.",
+                "message": (
+                    "Model AI belum di-load. Isi weights/ dan classes.json "
+                    "sesuai dokumentasi."
+                ),
             }
         },
     )

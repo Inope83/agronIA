@@ -284,7 +284,7 @@ URLs use the private endpoint, not `/media/`.
 
 ## ADR-016: Honest AI Inference Without Placeholder Predictions
 
-**Status:** Implemented
+**Status:** Superseded by ADR-017 (the inference interface moved to a separate FastAPI service)
 
 **Date:** 2026-10-22
 
@@ -310,6 +310,53 @@ fabricates labels or confidence scores.
 Tests verify `ModelUnavailable` when `AI_MODEL_PATH` is unset or the file
 is missing, and that analysis records become `failed` with no fake
 prediction data.
+
+
+## ADR-017: Separate Backend and AI Service Projects
+
+**Status:** Implemented
+
+**Date:** 2026-10-22
+
+### Context
+ADR-016 placed the inference interface inside the Django project as the
+`ai_service` app. The project owner requested a physical separation between
+the API backend and the AI service so that model dependencies, weights,
+training notebooks, and dataset tooling do not share a runtime with the
+public API.
+
+### Options considered
+- Keep inference as a Django app.
+- Separate FastAPI service inside the same repository.
+- Separate repository and independent deployment.
+
+### Decision
+Keep both projects in one repository but isolate them at the top level:
+`backend/` for the Django REST API and `ai/` for the FastAPI inference
+service and AI research assets. The `ai_service` Django app is removed.
+Django calls the service over HTTP using `AI_SERVICE_URL`.
+
+### Reasoning
+- The public API must not import PyTorch, model weights, or dataset code.
+- The AI service can restart, scale, or be replaced without redeploying the
+  API.
+- Training experiments stay isolated from production request handling.
+- A single repository keeps documentation, contract tests, and versioning
+  together for the prototype stage.
+
+### Consequences
+- **Benefits:** Clear dependency boundaries and an explicit HTTP contract.
+- **Trade-offs:** Two processes must run during development; the contract
+  must be kept in sync between `backend/` and `ai/`.
+- **Error mapping:** unreachable service → `service_unavailable`,
+  missing model → `model_unavailable`, unusable prediction →
+  `inference_failed`.
+
+### Verification
+- `python manage.py test` from `backend/` passes with mocked AI responses.
+- `flutter analyze` and widget tests remain clean.
+- `ai/service/main.py` compiles and returns an honest `503` when no model is
+  configured.
 
 ## 3. Future Decision Template
 

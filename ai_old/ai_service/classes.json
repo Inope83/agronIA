@@ -1,5 +1,0 @@
-{
-  "model_version": "none",
-  "description": "Daftar kelas yang dikenali model. Isi daftar ini hanya setelah dataset dan bobot model sungguhan dipilih (lihat docs/dataset.md dan docs/ai-model.md). Selama classes kosong, layanan analisis akan menolak permintaan dengan pesan yang jelas, bukan menebak.",
-  "classes": []
-}

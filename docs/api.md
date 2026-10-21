@@ -5,7 +5,7 @@
 This document defines the API contract between the Agronia Flutter application and its Django backend.
 
 Endpoint status is recorded per table. Endpoints marked **Implemented** have
-been implemented and covered by automated tests in `ai-model/*/tests.py`.
+been implemented and covered by automated tests in `backend/*/tests.py`.
 Endpoints marked **Proposed** are still design intentions and must not be
 assumed to exist.
 
@@ -178,11 +178,13 @@ Error codes in use:
 | `file_too_large` | 413 | Upload exceeds the configured limit |
 | `unsupported_media_type` | 415 | Unsupported media type |
 | `rate_limit_exceeded` | 429 | Rate limit exceeded |
-| `model_unavailable` | 503 | The AI model is missing or could not be loaded |
+| `internal_server_error` | 500 | Unexpected server failure |
+| `inference_failed` | 502 | The AI service returned an invalid or unusable response |
+| `model_unavailable` | 503 | The AI model is missing or is not loaded |
+| `service_unavailable` | 503 | The AI service cannot be reached or did not respond |
 | `unsupported_image` | 400 | The file is not a usable image |
 | `unsupported_crop` | 400 | The requested crop is not supported |
 | `unsupported_class` | 400 | The model produced a class that is not registered |
-| `internal_server_error` | 500 | Unexpected server failure |
 
 Messages are written for end users, not developers. Stack traces, internal
 paths, and configuration values are never included.
@@ -253,7 +255,7 @@ Image validation inspects the actual file contents with Pillow.
 - Behaviour when the AI model is unavailable tested (returns `503`,
   `status: "failed"`, no fake prediction).
 - Error handler returns consistent JSON format.
-- Tests run with `python manage.py test` from `ai-model/`.
+- Tests run with `python manage.py test` from `backend/`.
 
 ## 13. Current Status
 
@@ -262,3 +264,10 @@ Image validation inspects the actual file contents with Pillow.
 token authentication, consistent error formatting, strict image
 validation, owner-only access to history and private images, and an AI
 inference interface that fails honestly when no model is available.
+
+The inference component now runs as a separate FastAPI service in `ai/`
+(ADR-017). Django calls it over HTTP using `AI_SERVICE_URL`. An unreachable
+service returns `503 service_unavailable`; a service without a loaded model
+returns `503 model_unavailable`; an invalid or unregistered prediction
+returns `502 inference_failed`. Failed attempts are recorded with
+`status: "failed"` and never converted into a diagnosis.

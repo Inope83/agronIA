@@ -151,19 +151,56 @@ For each model version, record:
 
 Model weights should not be confused with the source code or dataset. Each may have different license conditions.
 
-## 12. Integration with Django
+## 12. Integration with the Backend
 
-The inference layer should expose a stable internal interface so Django does not depend on implementation details of a specific model.
+The inference layer is a separate FastAPI service in `ai/` (ADR-017). Django
+calls it over HTTP and does not import model code or weights.
 
-Expected responsibilities:
-1. Validate or receive a validated image.
-2. Apply required preprocessing.
-3. Execute inference.
-4. Map model outputs to documented labels.
-5. Return a structured result.
-6. Handle inference exceptions safely.
+Request contract:
 
-The model should not be loaded repeatedly for every request unless required by the chosen serving architecture.
+- `POST {AI_SERVICE_URL}/predict`
+- `multipart/form-data` with a single image field named `file`
+- Accepted formats must match the backend validators (JPG/PNG, maximum size
+  configured by `DJANGO_MAX_UPLOAD_SIZE_MB`).
+
+Successful response (`200`):
+
+```json
+{
+  "status": "ok",
+  "prediction": {
+    "class_id": "padi-blast",
+    "confidence": 0.91,
+    "model_version": "model-version-identifier"
+  },
+  "message": "Short explanation for the user."
+}
+```
+
+Failure response (`503`):
+
+```json
+{
+  "detail": {
+    "error": {
+      "code": "model_unavailable",
+      "message": "Model is not loaded."
+    }
+  }
+}
+```
+
+Backend behaviour:
+
+- AI service unreachable or timed out: `503 service_unavailable`.
+- AI service reports `model_unavailable`: `503 model_unavailable`.
+- Invalid response, invalid confidence, or a `class_id` that is not a
+  registered `Disease.code`: `502 inference_failed`.
+- Every failure is stored as `status: "failed"` with no prediction data.
+
+`class_id` values must match the `code` of an active `Disease` record. The
+model should not be loaded repeatedly for every request unless required by
+the chosen serving architecture.
 
 ## 13. Performance and Deployment
 

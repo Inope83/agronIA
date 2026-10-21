@@ -18,4 +18,11 @@ uvicorn service.main:app --reload --port 8001
 ```
 
 ## Integrasi dengan Backend
-Backend Django akan memanggil `http://localhost:8001/predict` dengan file gambar.
+Backend Django memanggil `http://localhost:8001/predict` dengan field `file`.
+Konfigurasi alamat dan timeout ada di `backend/.env` (`AI_SERVICE_URL`,
+`AI_SERVICE_TIMEOUT`).
+
+Backend memetakan kegagalan menjadi:
+- `service_unavailable` (503) bila service tidak dapat dijangkau.
+- `model_unavailable` (503) bila model belum tersedia.
+- `inference_failed` (502) bila respons tidak valid atau kelas tidak terdaftar.

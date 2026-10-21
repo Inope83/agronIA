@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import tempfile
 from io import BytesIO
+from unittest import mock
+
+import requests
 
 from django.contrib.auth.models import User
 from django.test import override_settings
@@ -12,7 +15,7 @@ from PIL import Image
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from agriculture.models import Crop
+from agriculture.models import Crop, Disease
 from analysis.models import Analysis
 
 
@@ -119,8 +122,12 @@ class AnalysisUploadValidationTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data["error"]["code"], "invalid_request")
 
-    def test_valid_image_without_model_returns_503_not_fake_success(self):
-        """AI service belum ada, jadi hasil harus 503 dan bukan diagnosis palsu."""
+    @mock.patch(
+        "analysis.views.requests.post",
+        side_effect=requests.exceptions.ConnectionError,
+    )
+    def test_unreachable_ai_service_returns_503_not_fake_success(self, _mock_post):
+        """AI service mati, jadi hasil harus 503 dan bukan diagnosis palsu."""
         with override_settings(MEDIA_ROOT=tempfile.mkdtemp()):
             response = self.client.post(
                 self.url,
@@ -131,7 +138,11 @@ class AnalysisUploadValidationTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
         self.assertEqual(response.data["error"]["code"], "service_unavailable")
 
-    def test_failed_analysis_is_recorded_with_failed_status(self):
+    @mock.patch(
+        "analysis.views.requests.post",
+        side_effect=requests.exceptions.ConnectionError,
+    )
+    def test_failed_analysis_is_recorded_with_failed_status(self, _mock_post):
         """Percobaan yang gagal harus tercatat dengan status `failed`."""
         with override_settings(MEDIA_ROOT=tempfile.mkdtemp()):
             self.client.post(
@@ -143,6 +154,137 @@ class AnalysisUploadValidationTests(APITestCase):
         analysis = Analysis.objects.get()
         self.assertEqual(analysis.status, Analysis.Status.FAILED)
         self.assertTrue(analysis.message)
+
+
+class AnalysisInferenceTests(APITestCase):
+    """Perilaku backend terhadap berbagai respons AI service."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="petani", password="RahasiaKuat123"
+        )
+        self.client.force_authenticate(self.user)
+        self.url = reverse("analysis-list")
+        self.disease = Disease.objects.create(
+            code="padi-blast",
+            name="Blast",
+            source="Test",
+        )
+
+    def _post_image(self):
+        return self.client.post(
+            self.url,
+            {"image": _named_file("padi.png", _png_bytes(300, 300))},
+            format="multipart",
+        )
+
+    @staticmethod
+    def _response(status_code: int, payload: dict):
+        response = mock.Mock()
+        response.status_code = status_code
+        response.headers = {"content-type": "application/json"}
+        response.json.return_value = payload
+        return response
+
+    @mock.patch("analysis.views.requests.post")
+    def test_model_unavailable_is_passed_through(self, mock_post):
+        """Model yang belum tersedia harus dilaporkan sebagai model_unavailable."""
+        mock_post.return_value = self._response(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            {
+                "detail": {
+                    "error": {
+                        "code": "model_unavailable",
+                        "message": "Model belum tersedia.",
+                    }
+                }
+            },
+        )
+
+        with override_settings(MEDIA_ROOT=tempfile.mkdtemp()):
+            response = self._post_image()
+
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertEqual(response.data["error"]["code"], "model_unavailable")
+
+        analysis = Analysis.objects.get()
+        self.assertEqual(analysis.status, Analysis.Status.FAILED)
+        self.assertIsNone(analysis.predicted_disease)
+
+    @mock.patch("analysis.views.requests.post")
+    def test_valid_prediction_is_stored(self, mock_post):
+        """Prediksi valid disimpan bersama penyakit dan confidence."""
+        mock_post.return_value = self._response(
+            status.HTTP_200_OK,
+            {
+                "status": "ok",
+                "prediction": {
+                    "class_id": "padi-blast",
+                    "confidence": 0.91,
+                    "model_version": "test-1",
+                },
+                "message": "Perkiraan awal.",
+            },
+        )
+
+        with override_settings(MEDIA_ROOT=tempfile.mkdtemp()):
+            response = self._post_image()
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        analysis = Analysis.objects.get()
+        self.assertEqual(analysis.status, Analysis.Status.COMPLETED)
+        self.assertEqual(analysis.predicted_disease, self.disease)
+        self.assertAlmostEqual(analysis.confidence, 0.91)
+        self.assertEqual(analysis.model_version, "test-1")
+
+    @mock.patch("analysis.views.requests.post")
+    def test_unknown_class_is_not_presented_as_result(self, mock_post):
+        """Kelas yang tidak terdaftar tidak boleh menjadi hasil sukses."""
+        mock_post.return_value = self._response(
+            status.HTTP_200_OK,
+            {
+                "status": "ok",
+                "prediction": {
+                    "class_id": "tidak-terdaftar",
+                    "confidence": 0.8,
+                },
+                "message": "",
+            },
+        )
+
+        with override_settings(MEDIA_ROOT=tempfile.mkdtemp()):
+            response = self._post_image()
+
+        self.assertEqual(response.status_code, status.HTTP_502_BAD_GATEWAY)
+        self.assertEqual(response.data["error"]["code"], "inference_failed")
+
+        analysis = Analysis.objects.get()
+        self.assertEqual(analysis.status, Analysis.Status.FAILED)
+        self.assertIsNone(analysis.predicted_disease)
+
+    @mock.patch("analysis.views.requests.post")
+    def test_invalid_confidence_is_not_presented_as_result(self, mock_post):
+        """Confidence di luar 0..1 dianggap respons tidak valid."""
+        mock_post.return_value = self._response(
+            status.HTTP_200_OK,
+            {
+                "status": "ok",
+                "prediction": {
+                    "class_id": "padi-blast",
+                    "confidence": 1.7,
+                },
+                "message": "",
+            },
+        )
+
+        with override_settings(MEDIA_ROOT=tempfile.mkdtemp()):
+            response = self._post_image()
+
+        self.assertEqual(response.status_code, status.HTTP_502_BAD_GATEWAY)
+        self.assertEqual(response.data["error"]["code"], "inference_failed")
+        self.assertEqual(Analysis.objects.get().status, Analysis.Status.FAILED)
+
 
 
 class AnalysisImageAccessTests(APITestCase):

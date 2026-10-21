@@ -12,7 +12,7 @@ from pathlib import Path
 
 from config.env import get_bool, get_float, get_int, get_list, load_dotenv
 
-# Folder `ai-model/`
+# Folder `backend/`
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / ".env")
@@ -150,14 +150,14 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # --- AI service ----------------------------------------------------------
 
-# Lokasi file bobot model. Kosong selama model belum tersedia.
-AI_MODEL_PATH = os.environ.get("AI_MODEL_PATH", "")
+# Backend tidak memuat model. Inferensi dijalankan oleh layanan FastAPI
+# terpisah di folder `ai/` (lihat `docs/architecture.md` dan ADR-017).
+AI_SERVICE_URL = os.environ.get("AI_SERVICE_URL", "http://localhost:8001")
+AI_SERVICE_TIMEOUT = get_int("AI_SERVICE_TIMEOUT", 30)
 
-# Ambang confidence. Di bawah nilai ini hasil dianggap belum meyakinkan.
+# Ambang confidence untuk menandai hasil sebagai meyakinkan. Nilai ini harus
+# dipilih dari data validasi sebelum dipakai di production (lihat ADR-013).
 AI_CONFIDENCE_THRESHOLD = get_float("AI_CONFIDENCE_THRESHOLD", 0.60)
-
-# Ukuran input model (piksel). Wajib konsisten dengan training.
-AI_IMAGE_SIZE = get_int("AI_IMAGE_SIZE", 224)
 
 
 # --- Logging -------------------------------------------------------------
@@ -194,8 +194,3 @@ LOGGING = {
 # --- Default -------------------------------------------------------------
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-
-
-#: AI Service (terpisah)
-AI_SERVICE_URL = __import__("os").environ.get("AI_SERVICE_URL", "http://localhost:8001")
-AI_SERVICE_TIMEOUT = int(__import__("os").environ.get("AI_SERVICE_TIMEOUT", "30"))
