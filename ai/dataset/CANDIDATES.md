@@ -9,7 +9,7 @@
 
 | Dataset | Sumber | Kelas | Ukuran | Lisensi | Status |
 |---|---|---|---|---|---|
-| **Rice Leaf and Crop Disease Detection** | [DOI 10.17632/g7tcwvshff.1](https://data.mendeley.com/datasets/g7tcwvshff/1) | Bacterial Leaf Blight, Rice Blast, Tungro, Healthy Leaf, Rice (generik) | 2.508 asli + 8.258 augmentasi | CC BY 4.0 | **Kandidat utama** |
+| **Rice Leaf and Crop Disease Detection** | [DOI 10.17632/g7tcwvshff.1](https://data.mendeley.com/datasets/g7tcwvshff/1) | Bacterial Leaf Blight, Rice Blast, Tungro, Healthy Leaf, Rice (generik) | 2.508 asli (1.923 untuk 4 kelas; 1.860 setelah dedup) + 8.258 augmentasi | CC BY 4.0 | **Kandidat utama** |
 | **Rice Leaf Disease Image Samples** | [DOI 10.17632/fwcj7stb8r.2](https://data.mendeley.com/datasets/fwcj7stb8r/2) | Bacterial blight, Blast, Brown Spot, Tungro | 5.932 | CC BY 4.0 | Cadangan (tanpa *healthy*) |
 | **Rice Leaf Bacterial and Fungal Disease** | [DOI 10.17632/hx6f852hw4.2](https://data.mendeley.com/datasets/hx6f852hw4/2) | 8 kelas termasuk Healthy | 1.701 asli + 5.188 augmentasi | CC BY 4.0 | Cadangan (kelas lebih banyak) |
 | **UCI Rice Leaf Diseases** | [UCI 486](https://archive.ics.uci.edu/dataset/486/rice+leaf+diseases) | Bacterial leaf blight, Brown spot, Leaf smut | 120 | CC BY 4.0 | Terlalu kecil untuk training utama |
@@ -41,7 +41,9 @@ Berdasarkan kebutuhan Agronia (fokus ke petani Timor-Leste), urutannya gini:
 3. Tungro
 4. Healthy Leaf
 
-Kelas **"Rice"** (generik) tidak dipakai karena bukan diagnosis penyakit. Hanya gambar **asli/raw** yang dipakai untuk training/validasi/test; gambar augmentasi bawaan tidak dipakai agar tidak terjadi kebocoran data. Keputusan final menunggu inspeksi dataset setelah diunduh (jumlah per kelas, duplikat, kualitas label, dan kondisi foto).
+Kelas **"Rice"** (generik) tidak dipakai karena bukan diagnosis penyakit. Hanya gambar **asli/raw** yang dipakai untuk training/validasi/test; gambar augmentasi bawaan tidak dipakai agar tidak terjadi kebocoran data.
+
+**Hasil inspeksi (2026-10-22):** ZIP berisi ZIP bersarang; struktur `<Kelas>/orginal/...` (typo dari pembuat dataset). Gambar original per kelas: Bacterial Leaf Blight 262, Healthy Leaf 771, Rice Blast 592, Tungro 298, Rice 585. Tidak ada file rusak; 63 duplikat persis dibuang. Total bersih untuk 4 kelas: **1.860 gambar**. Notebook Colab menangani ZIP bersarang dan typo `orginal` secara otomatis.
 
 ## 3. Rekomendasi Model
 
@@ -57,7 +59,7 @@ Kelas **"Rice"** (generik) tidak dipakai karena bukan diagnosis penyakit. Hanya 
 
 - [x] **Verifikasi lisensi** - Tiga dataset padi di 1.1 sudah CC BY 4.0 (dicek di halaman Mendeley, 2026-10-22).
 - [x] **Pastikan ada kelas padi** - PlantVillage/PlantDoc tidak punya padi; gunakan dataset padi spesifik di 1.1.
-- [ ] **Unduh kandidat utama** - Simpan ke `ai/dataset/raw/`, lalu inspeksi isi dan struktur folder.
+- [x] **Unduh kandidat utama** - ZIP tersimpan di `~/Downloads`; isi dan struktur sudah diinspeksi.
 - [ ] **Mapping kelas** - Cocokkan nama kelas dataset dengan `Disease.code` di backend.
 - [ ] **Cek distribusi** - Hitung gambar asli per kelas; jangan gabungkan augmentasi ke train/val/test.
 - [ ] **Siapkan split** - Train/val/test (mis. 70/15/15) stratified, dibuat sekali dan disimpan sebagai daftar file.

@@ -44,6 +44,11 @@ Untuk **MVP pertama**, lebih bijak mulai dari **1-2 tanaman** dengan dataset pub
 - **Isi:** 2.508 gambar asli + 8.258 augmentasi; kelas Bacterial Leaf Blight, Rice Blast, Tungro, Healthy Leaf, dan Rice (generik)
 - **Kelebihan:** Ada kelas *healthy*, jumlah memadai untuk baseline, kondisi foto lapangan
 - **Kekurangan:** Kelas "Rice" ambigu; augmentasi bawaan tidak boleh dipakai untuk validasi/test
+- **Verifikasi isi (2026-10-22):** ZIP 932 MB berisi ZIP bersarang. Struktur asli
+  `<Kelas>/orginal/...` (typo "orginal") dengan folder `augmented` terpisah.
+  Jumlah gambar original: Bacterial Leaf Blight 262, Healthy Leaf 771,
+  Rice Blast 592, Tungro 298, Rice 585. Tidak ada file rusak. Setelah kelas
+  Rice dan 63 duplikat persis dibuang: **1.860 gambar** untuk 4 kelas MVP.
 
 ### 2.5 Rice Leaf Disease Image Samples (Sethy dkk., 2020/2024)
 - **DOI:** [10.17632/fwcj7stb8r.2](https://data.mendeley.com/datasets/fwcj7stb8r/2)
@@ -91,8 +96,8 @@ Untuk MVP awal, **MobileNetV2 dengan pretrained ImageNet** via transfer learning
 
 - [x] Verifikasi lisensi kandidat dataset padi (CC BY 4.0, 2026-10-22)
 - [x] Pastikan kandidat memiliki kelas padi (PlantVillage/PlantDoc tidak punya)
-- [ ] Unduh kandidat utama dan inspeksi struktur folder
-- [ ] Evaluasi ukuran dataset asli per kelas
+- [x] Unduh kandidat utama dan inspeksi struktur folder (2026-10-22)
+- [x] Evaluasi ukuran dataset asli per kelas (1.923 original; 1.860 setelah dedup)
 - [x] Tentukan 4 kelas MVP: Bacterial Leaf Blight, Rice Blast, Tungro, Healthy Leaf
 - [ ] Download sample kecil untuk inspeksi visual
 - [ ] Dokumentasikan hasil inspeksi di file ini
