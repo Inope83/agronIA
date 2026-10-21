@@ -271,10 +271,11 @@ class ApiClient {
             'Server tidak merespons tepat waktu. Periksa koneksi lalu coba lagi.',
       );
     } on http.ClientException {
-      throw const ApiException(
+      throw ApiException(
         code: 'network_error',
         message:
-            'Tidak dapat terhubung ke server. Periksa koneksi dan alamat API.',
+            'Tidak dapat terhubung ke server di $baseUrl. '
+            'Periksa koneksi dan alamat API.',
       );
     }
   }

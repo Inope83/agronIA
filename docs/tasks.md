@@ -148,6 +148,15 @@ never converted into a diagnosis: `service_unavailable`, `model_unavailable`,
 failures. `flutter analyze` is clean; 12 tests pass; Linux debug build
 succeeds.
 
+**Update (2026-10-22, konektivitas):** Fixed `BASE_DIR` so `backend/.env`,
+SQLite, and media resolve to `backend/` (previously `backend/config/`).
+Development `ALLOWED_HOSTS` now merges `DJANGO_ALLOWED_HOSTS` instead of
+replacing it. Android debug builds allow cleartext HTTP for local development;
+the release manifest requests `INTERNET`. Verified over LAN: register,
+`GET /crops/`, and upload returning `503 model_unavailable` via
+`http://192.168.1.189:8000`. Physical devices still need
+`--dart-define=API_BASE_URL=http://<IP-LAN>:8000/api/v1`.
+
 **Completion criteria:** The mobile client can complete the agreed end-to-end workflow.
 
 ## 8. Phase 6 — Integration and Validation

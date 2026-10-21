@@ -13,7 +13,7 @@ from pathlib import Path
 from config.env import get_bool, get_float, get_int, get_list, load_dotenv
 
 # Folder `backend/`
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 load_dotenv(BASE_DIR / ".env")
 
