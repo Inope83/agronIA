@@ -1,30 +1,84 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:mobile/main.dart';
+import 'package:mobile/app.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('starts on home and exposes the four main destinations',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const AgroniaApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    expect(find.text('Agronia'), findsOneWidget);
+    expect(find.text('Analyze crop image'), findsOneWidget);
+    expect(find.text('No analyses yet. Submitted images and results will appear here.'),
+        findsOneWidget);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
+    expect(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Analyze'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('History'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Learn'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('navigates to History and Analyze', (WidgetTester tester) async {
+    await tester.pumpWidget(const AgroniaApp());
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('History'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('No analyses yet'), findsOneWidget);
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Analyze'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Analyze a crop image'), findsOneWidget);
+  });
+
+  testWidgets('requires an image before analysis', (WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(const AgroniaApp());
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Analyze'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Analyze image'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Analyze image'));
     await tester.pump();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('Select a photo of the affected crop first.'),
+        findsOneWidget);
   });
 }

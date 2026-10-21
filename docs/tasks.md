@@ -118,17 +118,19 @@ Update the status only when there is evidence that the work has been completed o
 
 ## 7. Phase 5 — Flutter Application
 
-- [ ] Confirm Flutter and Dart compatibility.
-- [ ] Establish the mobile application structure.
-- [ ] Implement the initial navigation.
+- [x] Confirm Flutter and Dart compatibility. (Flutter 3.44.0, Dart 3.12.0)
+- [x] Establish the mobile application structure. (`lib/core`, `lib/shared`, `lib/features`)
+- [x] Implement the initial navigation. (Home, Analyze, History, Learn via bottom navigation)
 - [ ] Implement authentication screens.
-- [ ] Implement image selection.
+- [x] Implement image selection. (gallery; camera on Android/iOS, client-side type and 10 MB size checks)
 - [ ] Implement API communication.
-- [ ] Implement loading and error states.
-- [ ] Implement prediction result display.
+- [x] Implement loading and error states. (reusable widgets; not yet connected to network flows)
+- [x] Implement prediction result display. (layout only; not reachable until API integration)
 - [ ] Implement analysis history if included in the initial scope.
 - [ ] Test network failure handling.
 - [ ] Test on an appropriate emulator or physical device.
+
+**Update (2026-10-22):** Flutter UI foundation implemented. Theme follows `docs/ui-ux.md` tokens; empty states are honest (no invented results or statistics). Analyze submission explicitly reports that image upload and AI analysis are not connected yet. `flutter analyze` reports no issues, 3 widget tests pass, Linux debug build succeeds.
 
 **Completion criteria:** The mobile client can complete the agreed end-to-end workflow.
 
