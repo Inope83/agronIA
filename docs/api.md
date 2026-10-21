@@ -265,6 +265,11 @@ token authentication, consistent error formatting, strict image
 validation, owner-only access to history and private images, and an AI
 inference interface that fails honestly when no model is available.
 
+The Flutter client is integrated for login/register, image upload, result
+rendering, and history using the contract above. The client never renders a
+failed record as a diagnosis. A successful prediction remains impossible
+until a model is selected and evaluated.
+
 The inference component now runs as a separate FastAPI service in `ai/`
 (ADR-017). Django calls it over HTTP using `AI_SERVICE_URL`. An unreachable
 service returns `503 service_unavailable`; a service without a loaded model

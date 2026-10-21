@@ -138,20 +138,30 @@ backend tests mock the AI service instead of depending on a local process.
 
 **Update (2026-10-22):** Flutter UI foundation implemented. Theme follows `docs/ui-ux.md` tokens; empty states are honest (no invented results or statistics). Analyze submission explicitly reports that image upload and AI analysis are not connected yet. `flutter analyze` reports no issues, 3 widget tests pass, Linux debug build succeeds.
 
+**Update (2026-10-22, Phase 6):** Client integration implemented against
+`docs/api.md`: token login/register, authenticated image upload, analysis
+result rendering, and owner-scoped history. Tokens are stored with
+`flutter_secure_storage`. API base URL defaults to `http://127.0.0.1:8000/api/v1`
+and can be overridden with `--dart-define=API_BASE_URL=...`. Failures are
+never converted into a diagnosis: `service_unavailable`, `model_unavailable`,
+`inference_failed`, validation errors, and network failures are shown as
+failures. `flutter analyze` is clean; 12 tests pass; Linux debug build
+succeeds.
+
 **Completion criteria:** The mobile client can complete the agreed end-to-end workflow.
 
 ## 8. Phase 6 — Integration and Validation
 
-- [ ] Verify the client and backend use the same API contract.
-- [ ] Test valid image uploads.
-- [ ] Test invalid and unsupported inputs.
-- [ ] Test authentication and permissions.
-- [ ] Test model failures and timeouts.
-- [ ] Review image storage permissions.
+- [x] Verify the client and backend use the same API contract. (client parses documented fields; contract tests added)
+- [x] Test valid image uploads. (live backend upload verified; client multipart test; full success blocked by missing model)
+- [x] Test invalid and unsupported inputs. (backend validation suite plus client-side type and size checks)
+- [x] Test authentication and permissions. (backend auth suite; client login and error parsing)
+- [x] Test model failures and timeouts. (unreachable service, `model_unavailable`, `inference_failed`, and timeout mapping)
+- [x] Review image storage permissions. (owner-only image endpoint tests)
 - [ ] Validate user-facing explanations.
 - [ ] Collect initial user feedback if available.
 - [ ] Seek agricultural expert feedback where possible.
-- [ ] Document unresolved issues.
+- [x] Document unresolved issues. (missing model and pending physical-device test recorded here and in ADR-017)
 
 **Completion criteria:** Integration tests pass and known limitations are documented.
 

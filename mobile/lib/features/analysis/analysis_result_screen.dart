@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../../core/api/models.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/app_card.dart';
 
@@ -14,6 +15,17 @@ class PredictionResult {
     this.nextSteps = const <String>[],
     this.isUncertain = false,
   });
+
+  factory PredictionResult.fromRecord(AnalysisRecord record) {
+    final Prediction? prediction = record.prediction;
+    return PredictionResult(
+      cropName: record.crop ?? 'Crop not specified',
+      label: prediction?.label ?? record.predictedDisease ?? 'Unknown condition',
+      explanation: record.message,
+      confidence: record.confidence ?? prediction?.confidence,
+      isUncertain: !(prediction?.isConfident ?? false),
+    );
+  }
 
   final String cropName;
   final String label;
@@ -31,7 +43,7 @@ class AnalysisResultScreen extends StatelessWidget {
     required this.onDone,
   });
 
-  final Uint8List imageBytes;
+  final Uint8List? imageBytes;
   final PredictionResult result;
   final VoidCallback onDone;
 
@@ -44,13 +56,29 @@ class AnalysisResultScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
         children: <Widget>[
-          ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: AspectRatio(
-              aspectRatio: 4 / 3,
-              child: Image.memory(imageBytes, fit: BoxFit.cover),
+          if (imageBytes != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: AspectRatio(
+                aspectRatio: 4 / 3,
+                child: Image.memory(imageBytes!, fit: BoxFit.cover),
+              ),
+            )
+          else
+            Container(
+              height: 140,
+              decoration: BoxDecoration(
+                color: AppColors.lightGreen,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Center(
+                child: Icon(
+                  Icons.image_not_supported_outlined,
+                  size: 34,
+                  color: AppColors.textSecondary,
+                ),
+              ),
             ),
-          ),
           const SizedBox(height: 20),
           Text(result.cropName, style: text.bodySmall),
           const SizedBox(height: 4),
