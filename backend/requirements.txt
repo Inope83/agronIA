@@ -1,0 +1,7 @@
+# Dependensi backend Agronia.
+# Versi di-pin agar lingkungan pengembangan dan produksi bisa direproduksi.
+# Lihat docs/skill.md bagian "Dependency Management".
+
+Django==5.2.18
+djangorestframework==3.18.3
+Pillow==13.0.0

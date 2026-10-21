@@ -1,0 +1,5 @@
+{
+  "model_version": "none",
+  "description": "Daftar kelas yang dikenali model. Isi hanya setelah dataset dan bobot model dipilih.",
+  "classes": []
+}
