@@ -1,5 +1,38 @@
 {
-  "model_version": "none",
-  "description": "Daftar kelas yang dikenali model. Isi hanya setelah dataset dan bobot model dipilih.",
-  "classes": []
+  "model_version": "rice-mobilenetv2-v1",
+  "description": "Classifier padi 4 kelas untuk MVP Agronia. Hanya gambar original/raw; kelas Rice dan augmentasi tidak dipakai.",
+  "image_size": 224,
+  "preprocessing": "RGB, resize 224x224, skala 0-255 (preprocess_input di dalam model)",
+  "dataset": {
+    "name": "Rice Leaf and Crop Disease Detection Dataset",
+    "doi": "10.17632/g7tcwvshff.1",
+    "license": "CC BY 4.0",
+    "citation": "Labib, R., Mim, S., Mojumdar, M. U. (2024)"
+  },
+  "classes": [
+    {
+      "index": 0,
+      "class_id": "padi-bacterial-blight",
+      "name": "Bacterial Leaf Blight",
+      "name_id": "Hawar Daun Bakteri"
+    },
+    {
+      "index": 1,
+      "class_id": "padi-sehat",
+      "name": "Healthy Leaf",
+      "name_id": "Daun Sehat"
+    },
+    {
+      "index": 2,
+      "class_id": "padi-blast",
+      "name": "Rice Blast",
+      "name_id": "Blas (Blast)"
+    },
+    {
+      "index": 3,
+      "class_id": "padi-tungro",
+      "name": "Tungro",
+      "name_id": "Tungro"
+    }
+  ]
 }
