@@ -5,8 +5,8 @@ from __future__ import annotations
 from django.conf import settings
 from rest_framework import serializers
 
-from agriculture.models import Crop
-from analysis.models import Analysis
+from agriculture.models import Crop, Disease
+from analysis.models import Analysis, AnalysisFeedback
 from analysis.validators import validate_image_file
 
 
@@ -61,6 +61,8 @@ class AnalysisSerializer(serializers.ModelSerializer):
     )
     image_url = serializers.SerializerMethodField()
     prediction = serializers.SerializerMethodField()
+    disease = serializers.SerializerMethodField()
+    feedback = serializers.SerializerMethodField()
 
     class Meta:
         model = Analysis
@@ -74,6 +76,8 @@ class AnalysisSerializer(serializers.ModelSerializer):
             "message",
             "image_url",
             "prediction",
+            "disease",
+            "feedback",
             "created_at",
         ]
         read_only_fields = fields
@@ -106,3 +110,70 @@ class AnalysisSerializer(serializers.ModelSerializer):
                 and obj.confidence >= settings.AI_CONFIDENCE_THRESHOLD
             ),
         }
+
+    def get_disease(self, obj: Analysis) -> dict | None:
+        """Panduan penyakit untuk hasil yang berhasil.
+
+        Hanya dikirim untuk analisis `completed`; analisis gagal tidak boleh
+        terlihat seolah-olah memiliki diagnosis.
+        """
+        if obj.status != Analysis.Status.COMPLETED or obj.predicted_disease is None:
+            return None
+
+        disease = obj.predicted_disease
+        return {
+            "code": disease.code,
+            "name": disease.name,
+            "name_local": disease.name_local,
+            "symptoms": disease.symptoms,
+            "prevention": disease.prevention,
+            "management": disease.management,
+            "source": disease.source,
+        }
+
+    def get_feedback(self, obj: Analysis) -> dict | None:
+        """Umpan balik pengguna, bila sudah pernah dikirim."""
+        feedback = getattr(obj, "feedback", None)
+        if feedback is None:
+            return None
+        return AnalysisFeedbackSerializer(feedback).data
+
+
+class AnalysisFeedbackSerializer(serializers.ModelSerializer):
+    """Validasi dan bentuk respons umpan balik hasil analisis."""
+
+    suggested_disease = serializers.SlugRelatedField(
+        slug_field="code",
+        queryset=Disease.objects.filter(is_active=True),
+        required=False,
+        allow_null=True,
+    )
+    note = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=1000,
+    )
+
+    class Meta:
+        model = AnalysisFeedback
+        fields = [
+            "id",
+            "is_correct",
+            "suggested_disease",
+            "note",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate(self, attrs):
+        """Prediksi yang dianggap benar tidak boleh punya usulan kelas lain."""
+        if attrs.get("is_correct") and attrs.get("suggested_disease"):
+            raise serializers.ValidationError(
+                {
+                    "suggested_disease": (
+                        "Kosongkan bila prediksi dianggap benar."
+                    )
+                }
+            )
+        return attrs

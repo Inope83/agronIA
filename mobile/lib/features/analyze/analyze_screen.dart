@@ -174,6 +174,7 @@ class _AnalyzeScreenState extends State<AnalyzeScreen> {
             builder: (BuildContext routeContext) => AnalysisResultScreen(
               imageBytes: _imageBytes!,
               result: PredictionResult.fromRecord(record),
+              api: widget.session.api,
               onDone: () {
                 Navigator.of(routeContext).pop();
                 widget.onGoHome();

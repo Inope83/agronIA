@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from django.urls import path
 
-from analysis.views import AnalysisDetailView, AnalysisImageView, AnalysisViewSet
+from analysis.views import (
+    AnalysisDetailView,
+    AnalysisFeedbackView,
+    AnalysisImageView,
+    AnalysisViewSet,
+)
 
 urlpatterns = [
     path(
@@ -16,6 +21,11 @@ urlpatterns = [
         "analyses/<uuid:analysis_id>/",
         AnalysisDetailView.as_view(),
         name="analysis-detail",
+    ),
+    path(
+        "analyses/<uuid:analysis_id>/feedback/",
+        AnalysisFeedbackView.as_view(),
+        name="analysis-feedback",
     ),
     path(
         "analyses/<uuid:analysis_id>/image/",

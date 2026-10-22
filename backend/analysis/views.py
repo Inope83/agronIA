@@ -29,8 +29,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from agriculture.models import Disease
-from analysis.models import Analysis
-from analysis.serializers import AnalysisCreateSerializer, AnalysisSerializer
+from analysis.models import Analysis, AnalysisFeedback
+from analysis.serializers import (
+    AnalysisCreateSerializer,
+    AnalysisFeedbackSerializer,
+    AnalysisSerializer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +96,7 @@ class AnalysisViewSet(viewsets.ViewSet):
     def get_queryset(self):
         """Record hanya milik pemilik, tidak ada akses silang antar pengguna."""
         return Analysis.objects.filter(user=self.request.user).select_related(
-            "crop", "predicted_disease"
+            "crop", "predicted_disease", "feedback__suggested_disease"
         )
 
     def list(self, request):
@@ -262,6 +266,57 @@ class AnalysisViewSet(viewsets.ViewSet):
         )
 
 
+class AnalysisFeedbackView(APIView):
+    """Simpan atau perbarui umpan balik pemilik analisis.
+
+    Umpan balik tidak mengubah hasil analisis asli. Pengguna dapat
+    memperbarui laporannya bila salah memilih.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, analysis_id):
+        """Catat koreksi pengguna untuk analisis yang berhasil."""
+        analysis = get_object_or_404(
+            Analysis.objects.filter(user=request.user),
+            pk=analysis_id,
+        )
+        if analysis.status != Analysis.Status.COMPLETED:
+            return Response(
+                {
+                    "error": {
+                        "code": "invalid_state",
+                        "message": (
+                            "Umpan balik hanya dapat dikirim untuk analisis "
+                            "yang berhasil."
+                        ),
+                    }
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = AnalysisFeedbackSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        feedback, created = AnalysisFeedback.objects.update_or_create(
+            analysis=analysis,
+            defaults={
+                "is_correct": serializer.validated_data["is_correct"],
+                "suggested_disease": serializer.validated_data.get(
+                    "suggested_disease"
+                ),
+                "note": serializer.validated_data.get("note", ""),
+            },
+        )
+
+        return Response(
+            AnalysisFeedbackSerializer(feedback).data,
+            status=(
+                status.HTTP_201_CREATED if created else status.HTTP_200_OK
+            ),
+        )
+
+
 class AnalysisDetailView(APIView):
     """Ambil satu analisis milik pengguna yang sedang masuk."""
 
@@ -271,7 +326,7 @@ class AnalysisDetailView(APIView):
         """Tampilkan detail satu record analisis."""
         analysis = get_object_or_404(
             Analysis.objects.filter(user=request.user).select_related(
-                "crop", "predicted_disease"
+                "crop", "predicted_disease", "feedback__suggested_disease"
             ),
             pk=analysis_id,
         )

@@ -84,6 +84,60 @@ class Prediction {
   }
 }
 
+class DiseaseInfo {
+  const DiseaseInfo({
+    required this.code,
+    required this.name,
+    this.nameLocal,
+    this.symptoms = '',
+    this.prevention = '',
+    this.management = '',
+    this.source = '',
+  });
+
+  final String code;
+  final String name;
+  final String? nameLocal;
+  final String symptoms;
+  final String prevention;
+  final String management;
+  final String source;
+
+  bool get isHealthy => code == 'padi-sehat';
+
+  factory DiseaseInfo.fromJson(Map<String, dynamic> json) {
+    return DiseaseInfo(
+      code: json['code'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      nameLocal: json['name_local'] as String?,
+      symptoms: json['symptoms'] as String? ?? '',
+      prevention: json['prevention'] as String? ?? '',
+      management: json['management'] as String? ?? '',
+      source: json['source'] as String? ?? '',
+    );
+  }
+}
+
+class AnalysisFeedback {
+  const AnalysisFeedback({
+    required this.isCorrect,
+    this.suggestedDisease,
+    this.note = '',
+  });
+
+  final bool isCorrect;
+  final String? suggestedDisease;
+  final String note;
+
+  factory AnalysisFeedback.fromJson(Map<String, dynamic> json) {
+    return AnalysisFeedback(
+      isCorrect: json['is_correct'] as bool? ?? false,
+      suggestedDisease: json['suggested_disease'] as String?,
+      note: json['note'] as String? ?? '',
+    );
+  }
+}
+
 class AnalysisRecord {
   const AnalysisRecord({
     required this.id,
@@ -95,6 +149,8 @@ class AnalysisRecord {
     this.modelVersion,
     this.imageUrl,
     this.prediction,
+    this.disease,
+    this.feedback,
     this.createdAt,
   });
 
@@ -107,6 +163,8 @@ class AnalysisRecord {
   final String? modelVersion;
   final String? imageUrl;
   final Prediction? prediction;
+  final DiseaseInfo? disease;
+  final AnalysisFeedback? feedback;
   final DateTime? createdAt;
 
   bool get isCompleted => status == 'completed';
@@ -129,6 +187,14 @@ class AnalysisRecord {
     final Prediction? prediction = predictionJson is Map<String, dynamic>
         ? Prediction.fromJson(predictionJson)
         : null;
+    final Object? diseaseJson = json['disease'];
+    final DiseaseInfo? disease = diseaseJson is Map<String, dynamic>
+        ? DiseaseInfo.fromJson(diseaseJson)
+        : null;
+    final Object? feedbackJson = json['feedback'];
+    final AnalysisFeedback? feedback = feedbackJson is Map<String, dynamic>
+        ? AnalysisFeedback.fromJson(feedbackJson)
+        : null;
 
     return AnalysisRecord(
       id: json['id'] as String? ?? '',
@@ -140,6 +206,8 @@ class AnalysisRecord {
       modelVersion: json['model_version'] as String?,
       imageUrl: json['image_url'] as String?,
       prediction: prediction,
+      disease: disease,
+      feedback: feedback,
       createdAt: DateTime.tryParse(json['created_at'] as String? ?? ''),
     );
   }

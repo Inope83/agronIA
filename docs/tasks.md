@@ -163,8 +163,16 @@ The FastAPI service now loads the model and returns real predictions; the
 backend seeds matching `Crop`/`Disease` records via
 `python manage.py seed_rice`. A live upload through the backend returned
 `201 completed` with `padi-blast`, confidence `0.8712`, and
-`model_version: rice-mobilenetv2-v1`. This was verified through the API
-with curl; the full Flutter-client flow on a phone still needs confirmation.
+`model_version: rice-mobilenetv2-v1`. The full Flutter-client flow on a phone
+was then confirmed with a real upload.
+
+**Update (2026-10-22, transparansi hasil):** The result screen now shows
+disease symptoms, prevention, and management from the matched `Disease`
+record, plus an explicit warning that high confidence is not proof. Owners
+can report a wrong prediction through `POST /api/v1/analyses/{id}/feedback/`;
+reports are stored in `AnalysisFeedback` and returned with the analysis. A
+live API check recorded an incorrect report with a suggested class. The
+backend suite has 52 tests and the Flutter suite has 17 tests, all passing.
 
 **Completion criteria:** The mobile client can complete the agreed end-to-end workflow.
 
@@ -176,10 +184,11 @@ with curl; the full Flutter-client flow on a phone still needs confirmation.
 - [x] Test authentication and permissions. (backend auth suite; client login and error parsing)
 - [x] Test model failures and timeouts. (unreachable service, `model_unavailable`, `inference_failed`, and timeout mapping)
 - [x] Review image storage permissions. (owner-only image endpoint tests)
-- [ ] Validate user-facing explanations.
-- [ ] Collect initial user feedback if available.
+- [x] Provide a way to report incorrect predictions. (`AnalysisFeedback`, feedback endpoint, and result-screen flow)
+- [ ] Validate user-facing explanations. (guidance and warnings implemented; expert review pending)
+- [ ] Collect initial user feedback if available. (feedback channel is ready, but no structured collection yet)
 - [ ] Seek agricultural expert feedback where possible.
-- [x] Document unresolved issues. (local field validation, client flow on device, and `padi-sehat` presentation recorded in `docs/ai-model.md`)
+- [x] Document unresolved issues. (local field validation, confidence calibration, and `padi-sehat` presentation recorded in `docs/ai-model.md`)
 
 **Completion criteria:** Integration tests pass and known limitations are documented.
 
@@ -202,9 +211,9 @@ with curl; the full Flutter-client flow on a phone still needs confirmation.
 
 The recommended next work is:
 
-1. Verify the full Flutter flow on a physical device over LAN with the model running.
+1. Review the result-screen guidance and feedback wording with an agricultural expert.
 2. Validate the model on local rice images from Timor-Leste with expert-reviewed labels.
-3. Review the seeded disease guidance with an agricultural expert.
+3. Use stored feedback and local photos to measure and improve model accuracy.
 4. Calibrate the confidence threshold and add unsupported/non-rice handling.
 5. Decide how `padi-sehat` is presented so it is never labelled as a disease.
 6. Begin Phase 7 deployment preparation after the above validation.

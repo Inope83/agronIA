@@ -16,7 +16,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from agriculture.models import Crop, Disease
-from analysis.models import Analysis
+from analysis.models import Analysis, AnalysisFeedback
 
 
 def make_image_bytes(width: int = 300, height: int = 300, fmt: str = "PNG") -> BytesIO:
@@ -168,6 +168,9 @@ class AnalysisInferenceTests(APITestCase):
         self.disease = Disease.objects.create(
             code="padi-blast",
             name="Blast",
+            symptoms="Bercak berbentuk belah ketupat.",
+            prevention="Gunakan varietas tahan.",
+            management="Konsultasikan dengan penyuluh.",
             source="Test",
         )
 
@@ -237,6 +240,12 @@ class AnalysisInferenceTests(APITestCase):
         self.assertEqual(analysis.predicted_disease, self.disease)
         self.assertAlmostEqual(analysis.confidence, 0.91)
         self.assertEqual(analysis.model_version, "test-1")
+        self.assertEqual(response.data["disease"]["code"], "padi-blast")
+        self.assertEqual(
+            response.data["disease"]["symptoms"],
+            "Bercak berbentuk belah ketupat.",
+        )
+        self.assertIsNone(response.data["feedback"])
 
     @mock.patch("analysis.views.requests.post")
     def test_unknown_class_is_not_presented_as_result(self, mock_post):
@@ -372,6 +381,137 @@ class AnalysisCropTests(APITestCase):
 
         analysis = Analysis.objects.get()
         self.assertEqual(analysis.crop, self.crop)
+
+
+class AnalysisFeedbackTests(APITestCase):
+    """Umpan balik pemilik analisis."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="petani", password="RahasiaKuat123"
+        )
+        self.other = User.objects.create_user(
+            username="lain", password="RahasiaKuat123"
+        )
+        self.disease = Disease.objects.create(
+            code="padi-blast", name="Blast", source="Test"
+        )
+        self.healthy = Disease.objects.create(
+            code="padi-sehat", name="Healthy", source="Test"
+        )
+        self.analysis = Analysis.objects.create(
+            user=self.user,
+            status=Analysis.Status.COMPLETED,
+            predicted_disease=self.disease,
+            confidence=0.9,
+        )
+        self.url = reverse("analysis-feedback", args=[self.analysis.id])
+
+    def test_requires_authentication(self):
+        """Tanpa login, umpan balik tidak bisa dikirim."""
+        response = self.client.post(
+            self.url, {"is_correct": True}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_owner_can_report_incorrect_result(self):
+        """Pemilik dapat mengusulkan kelas lain dan menulis catatan."""
+        self.client.force_authenticate(self.user)
+        response = self.client.post(
+            self.url,
+            {
+                "is_correct": False,
+                "suggested_disease": "padi-sehat",
+                "note": "Lesi memanjang mengikuti tulang daun.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        feedback = AnalysisFeedback.objects.get(analysis=self.analysis)
+        self.assertFalse(feedback.is_correct)
+        self.assertEqual(feedback.suggested_disease, self.healthy)
+        self.assertEqual(response.data["suggested_disease"], "padi-sehat")
+
+    def test_correct_feedback_cannot_suggest_another_class(self):
+        """Prediksi yang dianggap benar tidak boleh punya usulan kelas."""
+        self.client.force_authenticate(self.user)
+        response = self.client.post(
+            self.url,
+            {"is_correct": True, "suggested_disease": "padi-sehat"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "suggested_disease", response.data["error"]["details"]
+        )
+        self.assertFalse(AnalysisFeedback.objects.exists())
+
+    def test_failed_analysis_cannot_receive_feedback(self):
+        """Analisis gagal tidak punya hasil untuk dikoreksi."""
+        failed = Analysis.objects.create(
+            user=self.user, status=Analysis.Status.FAILED
+        )
+        self.client.force_authenticate(self.user)
+
+        response = self.client.post(
+            reverse("analysis-feedback", args=[failed.id]),
+            {"is_correct": False},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error"]["code"], "invalid_state")
+
+    def test_other_user_cannot_report(self):
+        """Pengguna lain tidak boleh melihat atau mengoreksi record ini."""
+        self.client.force_authenticate(self.other)
+
+        response = self.client.post(
+            self.url, {"is_correct": False}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_repeated_feedback_updates_existing_record(self):
+        """Laporan kedua memperbarui laporan pertama, bukan menggandakan."""
+        self.client.force_authenticate(self.user)
+
+        first = self.client.post(
+            self.url, {"is_correct": False}, format="json"
+        )
+        second = self.client.post(
+            self.url,
+            {"is_correct": True, "note": "Ternyata benar."},
+            format="json",
+        )
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+        self.assertEqual(AnalysisFeedback.objects.count(), 1)
+        feedback = AnalysisFeedback.objects.get()
+        self.assertTrue(feedback.is_correct)
+        self.assertEqual(feedback.note, "Ternyata benar.")
+
+    def test_analysis_detail_exposes_feedback(self):
+        """Detail analisis memuat umpan balik yang sudah dikirim."""
+        self.client.force_authenticate(self.user)
+        self.client.post(
+            self.url,
+            {"is_correct": False, "suggested_disease": "padi-sehat"},
+            format="json",
+        )
+
+        response = self.client.get(
+            reverse("analysis-detail", args=[self.analysis.id])
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["feedback"]["is_correct"])
+        self.assertEqual(
+            response.data["feedback"]["suggested_disease"], "padi-sehat"
+        )
 
 
 def _named_file(name: str, content: bytes):
