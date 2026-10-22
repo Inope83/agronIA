@@ -288,26 +288,42 @@ into the FastAPI service. Not yet validated on local field images.
 Full results are in `ai/evaluation/metrics.json`, with the confusion matrix and
 training curves as PNG files and the exact split in `ai/evaluation/splits.csv`.
 
+### Observed overconfidence during integration
+
+A real upload whose lesion was long and followed the leaf vein received
+99.04% for Rice Blast, while the model gave Bacterial Leaf Blight only 0.35%.
+The image was not part of the training or test split, so the true label is
+unknown, but the visual appearance was more consistent with bacterial leaf
+blight than with the typical diamond-shaped blast lesion. This is a concrete
+example of why softmax confidence is not a diagnosis. The result screen now
+warns users, shows the guidance for the matched class, and lets the owner
+report an incorrect result.
+
 ### Known limitations
 
 - The dataset is not from Timor-Leste. Accuracy on local varieties,
   backgrounds, lighting, devices, and disease stages is unknown.
 - The model always chooses one of four classes. It cannot yet reject
   non-rice images, unsupported crops, or images without visible symptoms.
-- Softmax confidence is not calibrated; a confidence threshold has not been
-  selected from validation data.
+- Softmax confidence is not calibrated. A high-confidence error was observed
+  during integration (99.04% for an image that may have been bacterial leaf
+  blight), so the threshold alone cannot establish trust.
 - The healthy class may not represent all healthy conditions or nutrient
   deficiencies.
 - `padi-sehat` is a healthy sentinel, not a disease. The backend `Disease`
-  model does not yet have an `is_healthy` flag, so the UI must not present it
-  as a disease.
+  model does not have an `is_healthy` flag; the result screen handles this
+  code as a healthy classification, but the data model should be made explicit.
 - The dataset is CC BY 4.0 and requires attribution when redistributed.
 
 ### Next steps
 
 1. Validate on expert-labelled local rice images from Timor-Leste.
-2. Add unsupported/non-rice detection or an abstention rule and calibrate the
+2. Review the seeded symptoms, prevention, and management text with an
+   agricultural expert.
+3. Use stored `AnalysisFeedback` reports and local photos to analyse errors
+   per class and decide whether retraining or additional data is needed.
+4. Add unsupported/non-rice detection or an abstention rule and calibrate the
    confidence threshold.
-3. Seed backend `Crop`/`Disease` records whose codes match `ai/classes.json`.
-4. Collect user and agricultural-expert feedback before expanding scope.
-5. Train a separate corn model only after the rice workflow is validated.
+5. Make healthy results explicit in the data model rather than representing
+   them as a `Disease` row.
+6. Train a separate corn model only after the rice workflow is validated.

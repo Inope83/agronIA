@@ -208,4 +208,91 @@ void main() {
     expect(records.first.prediction, isNull);
     expect(records.first.label, 'Analysis failed');
   });
+
+  test('parses disease guidance and feedback from an analysis', () {
+    final AnalysisRecord record = AnalysisRecord.fromJson(
+      <String, dynamic>{
+        'id': 'abc',
+        'status': 'completed',
+        'crop': 'padi',
+        'predicted_disease': 'padi-blast',
+        'confidence': 0.99,
+        'model_version': 'rice-mobilenetv2-v1',
+        'message': 'Prediksi: Blas (Blast).',
+        'image_url': '/api/v1/analyses/abc/image/',
+        'prediction': <String, dynamic>{
+          'class_id': 'padi-blast',
+          'label': 'Rice Blast',
+          'confidence': 0.99,
+          'model_version': 'rice-mobilenetv2-v1',
+          'is_confident': true,
+        },
+        'disease': <String, dynamic>{
+          'code': 'padi-blast',
+          'name': 'Rice Blast',
+          'name_local': 'Blas',
+          'symptoms': 'Bercak berbentuk belah ketupat.',
+          'prevention': 'Gunakan varietas tahan.',
+          'management': 'Konsultasikan dengan penyuluh.',
+          'source': 'IRRI Rice Knowledge Bank.',
+        },
+        'feedback': <String, dynamic>{
+          'is_correct': false,
+          'suggested_disease': 'padi-sehat',
+          'note': 'Lesi memanjang.',
+        },
+        'created_at': '2026-10-22T00:10:39.500207+08:00',
+      },
+    );
+
+    expect(record.disease?.code, 'padi-blast');
+    expect(record.disease?.symptoms, 'Bercak berbentuk belah ketupat.');
+    expect(record.disease?.isHealthy, false);
+    expect(record.feedback?.isCorrect, false);
+    expect(record.feedback?.suggestedDisease, 'padi-sehat');
+  });
+
+  test('submitFeedback posts a correction and parses the response', () async {
+    late Map<String, dynamic> requestBody;
+    late String? authorization;
+
+    final ApiClient api = ApiClient(
+      baseUrl: 'http://test/api/v1',
+      httpClient: MockClient((http.Request request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/api/v1/analyses/abc/feedback/');
+        authorization = request.headers['authorization'];
+        requestBody =
+            jsonDecode(request.body) as Map<String, dynamic>;
+
+        return http.Response(
+          jsonEncode(<String, dynamic>{
+            'id': 'feedback-1',
+            'is_correct': false,
+            'suggested_disease': 'padi-sehat',
+            'note': 'Lesi memanjang.',
+            'created_at': '2026-10-22T00:10:39.500207+08:00',
+            'updated_at': '2026-10-22T00:10:39.500207+08:00',
+          }),
+          201,
+          headers: <String, String>{'content-type': 'application/json'},
+        );
+      }),
+    );
+    api.token = 'secret-token';
+
+    final AnalysisFeedback feedback = await api.submitFeedback(
+      analysisId: 'abc',
+      isCorrect: false,
+      suggestedDisease: 'padi-sehat',
+      note: 'Lesi memanjang.',
+    );
+
+    expect(authorization, 'Token secret-token');
+    expect(requestBody['is_correct'], false);
+    expect(requestBody['suggested_disease'], 'padi-sehat');
+    expect(feedback.isCorrect, false);
+    expect(feedback.suggestedDisease, 'padi-sehat');
+    expect(feedback.note, 'Lesi memanjang.');
+  });
 }

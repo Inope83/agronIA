@@ -185,6 +185,63 @@ class ApiClient {
     return AnalysisRecord.fromJson(_decodeObject(response));
   }
 
+  Future<List<DiseaseInfo>> fetchDiseases() async {
+    final http.Response response = await _guard(
+      () => _http.get(_uri('/diseases/'), headers: _headers),
+    );
+
+    if (response.statusCode != 200) {
+      throw _exceptionFrom(response);
+    }
+
+    final Object? decoded = _tryDecode(response);
+    if (decoded is! List) {
+      throw const ApiException(
+        code: 'invalid_response',
+        message: 'Daftar penyakit dari server tidak valid.',
+      );
+    }
+
+    return decoded
+        .whereType<Map<String, dynamic>>()
+        .map(DiseaseInfo.fromJson)
+        .where((DiseaseInfo disease) => disease.code.isNotEmpty)
+        .toList();
+  }
+
+  Future<AnalysisFeedback> submitFeedback({
+    required String analysisId,
+    required bool isCorrect,
+    String? suggestedDisease,
+    String note = '',
+  }) async {
+    final Map<String, Object> body = <String, Object>{
+      'is_correct': isCorrect,
+    };
+    if (!isCorrect &&
+        suggestedDisease != null &&
+        suggestedDisease.isNotEmpty) {
+      body['suggested_disease'] = suggestedDisease;
+    }
+    if (note.trim().isNotEmpty) {
+      body['note'] = note.trim();
+    }
+
+    final http.Response response = await _guard(
+      () => _http.post(
+        _uri('/analyses/$analysisId/feedback/'),
+        headers: _jsonHeaders,
+        body: jsonEncode(body),
+      ),
+    );
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw _exceptionFrom(response);
+    }
+
+    return AnalysisFeedback.fromJson(_decodeObject(response));
+  }
+
   Future<Uint8List> fetchImage(String path) async {
     final http.Response response = await _guard(
       () => _http.get(ApiConfig.resolve(path), headers: _headers),

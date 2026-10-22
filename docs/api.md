@@ -65,6 +65,7 @@ makes logout deterministic.
 | POST | `/api/v1/analyses/` | Submit an image for analysis | Implemented |
 | GET | `/api/v1/analyses/` | List the current user's analysis history | Implemented |
 | GET | `/api/v1/analyses/{id}/` | Retrieve an authorized analysis | Implemented |
+| POST | `/api/v1/analyses/{id}/feedback/` | Report whether a prediction was correct | Implemented |
 | GET | `/api/v1/analyses/{id}/image/` | Retrieve the uploaded image, owner only | Implemented |
 
 ## 5. Image Analysis Request
@@ -122,9 +123,27 @@ by the backend with the MVP rice model.
     "model_version": "rice-mobilenetv2-v1",
     "is_confident": true
   },
+  "disease": {
+    "code": "padi-blast",
+    "name": "Rice Blast",
+    "name_local": "Blas",
+    "symptoms": "Bercak berbentuk belah ketupat dengan pusat abu-abu dan tepi cokelat pada daun.",
+    "prevention": "Gunakan varietas tahan dan benih sehat, hindari nitrogen berlebihan, atur waktu tanam, serta jaga kelembapan lahan.",
+    "management": "Bersihkan sisa tanaman terinfeksi, terapkan rotasi tanaman, dan konsultasikan penggunaan fungisida dengan penyuluh.",
+    "source": "IRRI Rice Knowledge Bank - Rice Blast. International Rice Research Institute."
+  },
+  "feedback": null,
   "created_at": "2026-10-22T09:13:41.626849+08:00"
 }
 ```
+
+`disease` contains the guidance for the predicted class. It is `null` for
+failed analyses. The Flutter result screen shows these fields under
+"Symptoms to check", "Prevention", and "What to do next"; the class label
+alone is not treated as a diagnosis.
+
+`feedback` is `null` until the owner reports whether the prediction was
+correct. See section 13.
 
 Class identifiers and labels are defined in `ai/classes.json`. A prediction
 is only stored as `completed` when the returned `class_id` matches an active
@@ -262,7 +281,45 @@ Image validation inspects the actual file contents with Pillow.
 - Error handler returns consistent JSON format.
 - Tests run with `python manage.py test` from `backend/`.
 
-## 13. Current Status
+## 13. Analysis Feedback
+
+**Status: Implemented.** The owner of a completed analysis can report whether
+the prediction was correct. Feedback is stored separately and does not change
+the original analysis or its prediction.
+
+**Endpoint:** `POST /api/v1/analyses/{id}/feedback/`
+
+**Authentication:** required; only the owner can report.
+
+Request body:
+
+```json
+{
+  "is_correct": false,
+  "suggested_disease": "padi-bacterial-blight",
+  "note": "Lesi panjang mengikuti tulang daun."
+}
+```
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `is_correct` | boolean | Yes | Whether the prediction matched the real condition. |
+| `suggested_disease` | string | No | Active `Disease.code`; must be empty when `is_correct` is true. |
+| `note` | string | No | Maximum 1000 characters. |
+
+Responses:
+
+- `201 Created` on the first report; `200 OK` when the same owner updates it.
+- `400 invalid_state` for analyses that did not complete.
+- `400 invalid_request` for an unknown or inconsistent class.
+- `404 not_found` for another user's analysis.
+
+The response contains `id`, `is_correct`, `suggested_disease`, `note`,
+`created_at`, and `updated_at`. The same object is returned as `feedback` in
+the analysis response. Feedback is intended for model evaluation and future
+local validation; it is not displayed as a confirmed diagnosis.
+
+## 14. Current Status
 
 **Backend API foundation is implemented and tested.** Endpoints are
 implemented under `/api/v1/` with token authentication, consistent error
@@ -271,8 +328,11 @@ images, and an AI inference interface that fails honestly on service or
 model errors.
 
 The Flutter client is integrated for login/register, image upload, result
-rendering, and history using the contract above. The client never renders a
-failed record as a diagnosis.
+rendering, and history using the contract above. The result screen shows the
+predicted class, confidence, disease guidance, and an explicit warning that a
+high confidence is not proof. Owners can report an incorrect result through
+the feedback endpoint; the client never renders a failed record as a
+diagnosis.
 
 The inference component runs as a separate FastAPI service in `ai/`
 (ADR-017). Django calls it over HTTP using `AI_SERVICE_URL`. The MVP model
@@ -283,5 +343,6 @@ then returns `completed` with a real prediction (verified through the API).
 The service still returns `503 model_unavailable` when the model is not
 configured, and `502 inference_failed` for invalid or unregistered
 predictions. Failed attempts are recorded with `status: "failed"` and never
-converted into a diagnosis. Field validation in Timor-Leste and the full
+converted into a diagnosis. The backend suite has 52 tests and the Flutter
+suite has 17 tests, all passing. Field validation in Timor-Leste and the full
 Flutter flow on a physical device remain pending.

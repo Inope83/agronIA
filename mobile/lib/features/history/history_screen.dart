@@ -102,6 +102,7 @@ class HistoryScreenState extends State<HistoryScreen> {
         builder: (BuildContext routeContext) => AnalysisResultScreen(
           imageBytes: imageBytes,
           result: PredictionResult.fromRecord(record),
+          api: widget.session.api,
           onDone: () => Navigator.of(routeContext).pop(),
         ),
       ),

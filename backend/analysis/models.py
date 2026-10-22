@@ -81,3 +81,43 @@ class Analysis(models.Model):
 
     def __str__(self) -> str:
         return f"Analisis {self.id} ({self.status})"
+
+
+class AnalysisFeedback(models.Model):
+    """Koreksi pengguna terhadap hasil analisis.
+
+    Umpan balik dipakai untuk mengevaluasi kualitas model dan menjadi bahan
+    validasi berikutnya. Umpan balik tidak mengubah hasil analisis asli.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    analysis = models.OneToOneField(
+        Analysis,
+        on_delete=models.CASCADE,
+        related_name="feedback",
+    )
+    is_correct = models.BooleanField(
+        help_text="Apakah prediksi model sesuai dengan kondisi tanaman.",
+    )
+    suggested_disease = models.ForeignKey(
+        Disease,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="suggested_feedbacks",
+        help_text="Kelas yang diusulkan pengguna bila prediksi dianggap salah.",
+    )
+    note = models.TextField(
+        blank=True,
+        help_text="Catatan tambahan dari pengguna.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Umpan Balik Analisis"
+        verbose_name_plural = "Umpan Balik Analisis"
+
+    def __str__(self) -> str:
+        state = "benar" if self.is_correct else "salah"
+        return f"Umpan balik {self.analysis_id} ({state})"
