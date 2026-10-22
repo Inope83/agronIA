@@ -38,3 +38,11 @@ mobile/pubspec.lock
 .vscode/
 *.swp
 .DS_Store
+
+# AI datasets and model artifacts
+ai/dataset/raw/
+ai/dataset/processed/
+ai/weights/*.keras
+ai/weights/*.h5
+ai/weights/*.tflite
+ai/weights/*.onnx

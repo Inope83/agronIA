@@ -5,12 +5,22 @@
 
 ## 1. Perbandingan Kandidat
 
-| Dataset | Sumber | Kondisi Gambar | Ukuran | Kelebihan | Kekurangan | Lisensi | Status |
-|---|---|---|---|---|---|---|---|
-| **PlantVillage** | [plantvillage.psu.edu](https://plantvillage.psu.edu/) | Lab / controlled (daun terlepas, background seragam) | ~54k gambar, banyak kelas tanaman & penyakit | Sangat bersih, label konsisten, cocok buat *baseline*, banyak dipakai riset | Kurang mirip kondisi lapangan Timor-Leste, background terlalu ideal | Perlu dicek langsung di Terms of Service | **Perlu verifikasi** |
-| **PlantDoc** | [github.com/pratikkayal/PlantDoc-Dataset](https://github.com/pratikkayal/PlantDoc-Dataset) | In-the-wild / lapangan (background alami, pencahayaan beragam) | ~2.6k gambar | Lebih realistis buat deployment ke petani, mendekati foto asli dari handphone | Lebih kecil, distribusi kelas nggak selalu seimbang, ada label yang perlu dicek ulang | Perlu cek LICENSE di repo GitHub | **Perlu verifikasi** |
-| **Rice Disease Dataset (Kaggle mirrors)** | [kaggle.com/search?q=rice+disease](https://www.kaggle.com/search?q=rice+disease) | Campuran (ada yang lab, ada yang lapangan) | Beragam (ratusan - ribuan) | Lebih fokus ke **padi** (sangat relevan buat Timor-Leste) | Sangat bergantung sama uploader. Ada yang beneran dari riset, ada yang asal upload. Lisensi bisa beda-beda | **Wajib cek per dataset** | **Perlu verifikasi** |
-| **Plant Pathology (FGVC)** | [kaggle.com/competitions/plant-pathology-2020-fgvc7](https://www.kaggle.com/competitions/plant-pathology-2020-fgvc7) | Lebih mendekati lapangan | ~3.6k gambar | Gambar realistis, cukup menantang buat evaluasi | Fokus ke apel, bukan padi/jagung/ubi kayu yang jadi prioritas awal | Cek competition rules & data license | **Kurang relevan buat MVP awal** |
+### 1.1 Dataset padi (lisensi sudah diverifikasi)
+
+| Dataset | Sumber | Kelas | Ukuran | Lisensi | Status |
+|---|---|---|---|---|---|
+| **Rice Leaf and Crop Disease Detection** | [DOI 10.17632/g7tcwvshff.1](https://data.mendeley.com/datasets/g7tcwvshff/1) | Bacterial Leaf Blight, Rice Blast, Tungro, Healthy Leaf, Rice (generik) | 2.508 asli (1.923 untuk 4 kelas; 1.860 setelah dedup) + 8.258 augmentasi | CC BY 4.0 | **Kandidat utama** |
+| **Rice Leaf Disease Image Samples** | [DOI 10.17632/fwcj7stb8r.2](https://data.mendeley.com/datasets/fwcj7stb8r/2) | Bacterial blight, Blast, Brown Spot, Tungro | 5.932 | CC BY 4.0 | Cadangan (tanpa *healthy*) |
+| **Rice Leaf Bacterial and Fungal Disease** | [DOI 10.17632/hx6f852hw4.2](https://data.mendeley.com/datasets/hx6f852hw4/2) | 8 kelas termasuk Healthy | 1.701 asli + 5.188 augmentasi | CC BY 4.0 | Cadangan (kelas lebih banyak) |
+| **UCI Rice Leaf Diseases** | [UCI 486](https://archive.ics.uci.edu/dataset/486/rice+leaf+diseases) | Bacterial leaf blight, Brown spot, Leaf smut | 120 | CC BY 4.0 | Terlalu kecil untuk training utama |
+
+### 1.2 Dataset non-padi (referensi, bukan untuk MVP)
+
+| Dataset | Catatan | Status |
+|---|---|---|
+| **PlantVillage** | ~54k gambar, kualitas label bagus, tetapi **tidak memiliki kelas padi** dan kondisi lab | Tidak dipakai untuk MVP padi |
+| **PlantDoc** | 2.598 gambar in-the-wild, tetapi **tidak memiliki kelas padi** | Tidak dipakai untuk MVP padi |
+| **Plant Pathology (FGVC)** | Fokus apel, bukan padi | Tidak relevan untuk MVP |
 
 ## 2. Rekomendasi Untuk MVP
 
@@ -24,6 +34,17 @@ Berdasarkan kebutuhan Agronia (fokus ke petani Timor-Leste), urutannya gini:
 
 **Rekomendasi:** Mulai dari **Padi saja** buat MVP pertama. Jangan langsung ambil 5-10 tanaman. Lebih baik **sedikit kelas, tapi bisa diuji dengan jujur** ketimbang banyak kelas tapi nggak relevan.
 
+**Kandidat utama:** **Rice Leaf and Crop Disease Detection** (Labib dkk., 2024, CC BY 4.0) dengan 4 kelas MVP:
+
+1. Bacterial Leaf Blight
+2. Rice Blast
+3. Tungro
+4. Healthy Leaf
+
+Kelas **"Rice"** (generik) tidak dipakai karena bukan diagnosis penyakit. Hanya gambar **asli/raw** yang dipakai untuk training/validasi/test; gambar augmentasi bawaan tidak dipakai agar tidak terjadi kebocoran data.
+
+**Hasil inspeksi (2026-10-22):** ZIP berisi ZIP bersarang; struktur `<Kelas>/orginal/...` (typo dari pembuat dataset). Gambar original per kelas: Bacterial Leaf Blight 262, Healthy Leaf 771, Rice Blast 592, Tungro 298, Rice 585. Tidak ada file rusak; 63 duplikat persis dibuang. Total bersih untuk 4 kelas: **1.860 gambar**. Notebook Colab menangani ZIP bersarang dan typo `orginal` secara otomatis.
+
 ## 3. Rekomendasi Model
 
 | Model | Bobot | Cocok Inference | Catatan |
@@ -36,16 +57,17 @@ Berdasarkan kebutuhan Agronia (fokus ke petani Timor-Leste), urutannya gini:
 
 ## 4. Langkah Selanjutnya
 
-- [ ] **Verifikasi lisensi** - Buka halaman resmi PlantVillage & cek Terms/License. Jangan percaya cuma "free" di Kaggle.
-- [ ] **Cari subset padi** - Kalo pakai PlantVillage, filter cuma kelas yang berhubungan sama padi. Catat nama kelas persis.
-- [ ] **Mapping kelas** - Bandingin nama penyakit antara dataset vs yang mungkin relevan buat Timor-Leste.
-- [ ] **Cek distribusi** - Lihat jumlah gambar per kelas. Hindari kelas dengan <20-30 gambar (rawan overfit).
-- [ ] **Siapkan split** - Rencanain train/val/test (mis. 70/15/15) dengan stratified split.
-- [ ] **Evaluasi realistis** - Ingat gap antara lab-image (PlantVillage) vs foto lapangan. Kita wajib catat ini di `ai-model.md`.
+- [x] **Verifikasi lisensi** - Tiga dataset padi di 1.1 sudah CC BY 4.0 (dicek di halaman Mendeley, 2026-10-22).
+- [x] **Pastikan ada kelas padi** - PlantVillage/PlantDoc tidak punya padi; gunakan dataset padi spesifik di 1.1.
+- [x] **Unduh kandidat utama** - ZIP tersimpan di `~/Downloads`; isi dan struktur sudah diinspeksi.
+- [ ] **Mapping kelas** - Cocokkan nama kelas dataset dengan `Disease.code` di backend.
+- [ ] **Cek distribusi** - Hitung gambar asli per kelas; jangan gabungkan augmentasi ke train/val/test.
+- [ ] **Siapkan split** - Train/val/test (mis. 70/15/15) stratified, dibuat sekali dan disimpan sebagai daftar file.
+- [ ] **Evaluasi realistis** - Catat asal dataset dan keterbatasannya di `docs/ai-model.md`.
 
 ## Catatan Penting
 
-- **Belum download apa-apa.** Semua poin di atas masih investigasi.
+- **Belum ada dataset yang diunduh.** Lisensi sudah diverifikasi, isi dataset belum.
 - **Jangan klaim akurasi** sebelum ada evaluasi terpisah di test set + dokumentasi metrik per kelas.
-- **Fokus ke bukti**. Lisensi > hype popularitas dataset.
-- **Kondisi lapangan beda**. PlantVillage bagus buat *proof of concept*, tapi perlu diuji dengan foto nyata dari Timor-Leste nanti.
+- **Fokus ke bukti.** Lisensi jelas dan jumlah gambar per kelas lebih penting daripada popularitas dataset.
+- **Kondisi lapangan beda.** Foto dataset belum tentu mirip foto petani Timor-Leste; ini harus diuji dan dicatat sebagai keterbatasan.
