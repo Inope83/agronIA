@@ -127,14 +127,14 @@ backend tests mock the AI service instead of depending on a local process.
 - [x] Confirm Flutter and Dart compatibility. (Flutter 3.44.0, Dart 3.12.0)
 - [x] Establish the mobile application structure. (`lib/core`, `lib/shared`, `lib/features`)
 - [x] Implement the initial navigation. (Home, Analyze, History, Learn via bottom navigation)
-- [ ] Implement authentication screens.
+- [x] Implement authentication screens. (register/login/logout with token auth)
 - [x] Implement image selection. (gallery; camera on Android/iOS, client-side type and 10 MB size checks)
-- [ ] Implement API communication.
-- [x] Implement loading and error states. (reusable widgets; not yet connected to network flows)
-- [x] Implement prediction result display. (layout only; not reachable until API integration)
-- [ ] Implement analysis history if included in the initial scope.
-- [ ] Test network failure handling.
-- [ ] Test on an appropriate emulator or physical device.
+- [x] Implement API communication. (`http` client with auth, upload, history, and result parsing)
+- [x] Implement loading and error states. (connected to network flows; failures are never shown as diagnoses)
+- [x] Implement prediction result display. (rendered only from a completed analysis)
+- [x] Implement analysis history if included in the initial scope. (owner-scoped list and detail)
+- [x] Test network failure handling. (client tests plus live backend error mapping)
+- [x] Test on an appropriate emulator or physical device. (Linux build; Android device connectivity tested)
 
 **Update (2026-10-22):** Flutter UI foundation implemented. Theme follows `docs/ui-ux.md` tokens; empty states are honest (no invented results or statistics). Analyze submission explicitly reports that image upload and AI analysis are not connected yet. `flutter analyze` reports no issues, 3 widget tests pass, Linux debug build succeeds.
 
@@ -157,12 +157,21 @@ the release manifest requests `INTERNET`. Verified over LAN: register,
 `http://192.168.1.189:8000`. Physical devices still need
 `--dart-define=API_BASE_URL=http://<IP-LAN>:8000/api/v1`.
 
+**Update (2026-10-22, model):** Trained `rice-mobilenetv2-v1` (MobileNetV2,
+four rice classes) with 84.59% accuracy on a 279-image held-out test set.
+The FastAPI service now loads the model and returns real predictions; the
+backend seeds matching `Crop`/`Disease` records via
+`python manage.py seed_rice`. A live upload through the backend returned
+`201 completed` with `padi-blast`, confidence `0.8712`, and
+`model_version: rice-mobilenetv2-v1`. This was verified through the API
+with curl; the full Flutter-client flow on a phone still needs confirmation.
+
 **Completion criteria:** The mobile client can complete the agreed end-to-end workflow.
 
 ## 8. Phase 6 — Integration and Validation
 
 - [x] Verify the client and backend use the same API contract. (client parses documented fields; contract tests added)
-- [x] Test valid image uploads. (live backend upload verified; client multipart test; full success blocked by missing model)
+- [x] Test valid image uploads. (live end-to-end upload returned `201 completed` with `rice-mobilenetv2-v1`)
 - [x] Test invalid and unsupported inputs. (backend validation suite plus client-side type and size checks)
 - [x] Test authentication and permissions. (backend auth suite; client login and error parsing)
 - [x] Test model failures and timeouts. (unreachable service, `model_unavailable`, `inference_failed`, and timeout mapping)
@@ -170,7 +179,7 @@ the release manifest requests `INTERNET`. Verified over LAN: register,
 - [ ] Validate user-facing explanations.
 - [ ] Collect initial user feedback if available.
 - [ ] Seek agricultural expert feedback where possible.
-- [x] Document unresolved issues. (missing model and pending physical-device test recorded here and in ADR-017)
+- [x] Document unresolved issues. (local field validation, client flow on device, and `padi-sehat` presentation recorded in `docs/ai-model.md`)
 
 **Completion criteria:** Integration tests pass and known limitations are documented.
 
@@ -193,10 +202,11 @@ the release manifest requests `INTERNET`. Verified over LAN: register,
 
 The recommended next work is:
 
-1. Verify the current repository and documentation.
-2. Finalize the initial crop and disease scope.
-3. Research suitable existing datasets.
-4. Evaluate candidate pretrained models.
-5. Begin implementation after the architecture and API contract are sufficiently defined.
+1. Verify the full Flutter flow on a physical device over LAN with the model running.
+2. Validate the model on local rice images from Timor-Leste with expert-reviewed labels.
+3. Review the seeded disease guidance with an agricultural expert.
+4. Calibrate the confidence threshold and add unsupported/non-rice handling.
+5. Decide how `padi-sehat` is presented so it is never labelled as a disease.
+6. Begin Phase 7 deployment preparation after the above validation.
 
 Do not mark any task as done solely because a plan or document has been written.

@@ -95,43 +95,48 @@ are enforced (configurable via `DJANGO_MAX_UPLOAD_SIZE_MB`):
 - Minimum dimension of 64 pixels per side.
 - Maximum of 40 million pixels, to limit decompression bomb impact.
 
+The MVP model (`rice-mobilenetv2-v1`) supports four rice classes. Each
+`class_id` must match an active `Disease.code`; run
+`python manage.py seed_rice` after migrations to register `padi`, then
+`padi-bacterial-blight`, `padi-sehat`, `padi-blast`, and `padi-tungro`.
+
 ## 6. Analysis Response
 
-**Status: Implemented.** The following is the actual response shape produced
-by the backend.
+**Status: Implemented.** The following is an actual response shape produced
+by the backend with the MVP rice model.
 
 ```json
 {
-  "id": "3f1c0a54-6b2e-4f1a-9c77-1d4e0a1b2c3d",
+  "id": "14da09ba-9184-4258-98ce-fed1c49ee500",
   "status": "completed",
   "crop": "padi",
-  "predicted_disease": "blast-padi",
-  "confidence": 0.82,
-  "model_version": "plantvillage-mobilenetv2-v1",
-  "message": "Hasil ini merupakan perkiraan awal. Periksa gejala pada tanaman dan konsultasikan dengan tenaga pertanian bila masalah berlanjut.",
-  "image_url": "/api/v1/analyses/3f1c0a54-6b2e-4f1a-9c77-1d4e0a1b2c3d/image/",
+  "predicted_disease": "padi-blast",
+  "confidence": 0.8712,
+  "model_version": "rice-mobilenetv2-v1",
+  "message": "Prediksi: Blas (Blast).",
+  "image_url": "/api/v1/analyses/14da09ba-9184-4258-98ce-fed1c49ee500/image/",
   "prediction": {
-    "class_id": "blast-padi",
-    "label": "Blast Padi",
-    "confidence": 0.82,
-    "model_version": "plantvillage-mobilenetv2-v1",
+    "class_id": "padi-blast",
+    "label": "Rice Blast",
+    "confidence": 0.8712,
+    "model_version": "rice-mobilenetv2-v1",
     "is_confident": true
   },
-  "created_at": "2026-10-22T00:10:39.500207+08:00"
+  "created_at": "2026-10-22T09:13:41.626849+08:00"
 }
 ```
 
-The identifiers and labels above are **illustrative placeholders**. The
-backend currently has no model, so a real response always has
-`status: "failed"` and `prediction: null` until a model is selected,
-trained, and evaluated.
+Class identifiers and labels are defined in `ai/classes.json`. A prediction
+is only stored as `completed` when the returned `class_id` matches an active
+`Disease` record. The model is not yet validated on local field images.
 
 `confidence` is only populated when the inference implementation actually
 produces a score. The API never fabricates confidence values.
 
-`is_confident` compares the confidence against `AI_CONFIDENCE_THRESHOLD`.
-When it is `false`, the `message` explains that the result is not certain
-and recommends taking a clearer photo or consulting an extension worker.
+`is_confident` compares the confidence against `AI_CONFIDENCE_THRESHOLD`
+(default `0.60`). When it is `false`, the Flutter client shows an additional
+uncertainty warning; the backend still returns the prediction rather than
+inventing a diagnosis.
 
 ## 7. Analysis Status
 
@@ -259,20 +264,24 @@ Image validation inspects the actual file contents with Pillow.
 
 ## 13. Current Status
 
-**Backend API foundation is implemented and tested** on branch
-`backend-foundation`. Endpoints are implemented under `/api/v1/` with
-token authentication, consistent error formatting, strict image
-validation, owner-only access to history and private images, and an AI
-inference interface that fails honestly when no model is available.
+**Backend API foundation is implemented and tested.** Endpoints are
+implemented under `/api/v1/` with token authentication, consistent error
+formatting, strict image validation, owner-only access to history and private
+images, and an AI inference interface that fails honestly on service or
+model errors.
 
 The Flutter client is integrated for login/register, image upload, result
 rendering, and history using the contract above. The client never renders a
-failed record as a diagnosis. A successful prediction remains impossible
-until a model is selected and evaluated.
+failed record as a diagnosis.
 
-The inference component now runs as a separate FastAPI service in `ai/`
-(ADR-017). Django calls it over HTTP using `AI_SERVICE_URL`. An unreachable
-service returns `503 service_unavailable`; a service without a loaded model
-returns `503 model_unavailable`; an invalid or unregistered prediction
-returns `502 inference_failed`. Failed attempts are recorded with
-`status: "failed"` and never converted into a diagnosis.
+The inference component runs as a separate FastAPI service in `ai/`
+(ADR-017). Django calls it over HTTP using `AI_SERVICE_URL`. The MVP model
+`rice-mobilenetv2-v1` is loaded from `AI_MODEL_PATH`; matching crop and
+disease records are created with `python manage.py seed_rice`. A live upload
+then returns `completed` with a real prediction (verified through the API).
+
+The service still returns `503 model_unavailable` when the model is not
+configured, and `502 inference_failed` for invalid or unregistered
+predictions. Failed attempts are recorded with `status: "failed"` and never
+converted into a diagnosis. Field validation in Timor-Leste and the full
+Flutter flow on a physical device remain pending.

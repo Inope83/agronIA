@@ -355,8 +355,8 @@ Django calls the service over HTTP using `AI_SERVICE_URL`.
 ### Verification
 - `python manage.py test` from `backend/` passes with mocked AI responses.
 - `flutter analyze` and widget tests remain clean.
-- `ai/service/main.py` compiles and returns an honest `503` when no model is
-  configured.
+- `ai/service/main.py` loads `rice-mobilenetv2-v1` when `AI_MODEL_PATH` is
+  configured, and returns an honest `503` when no model is available.
 
 ## 3. Future Decision Template
 
