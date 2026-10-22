@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from io import StringIO
+
+from django.core.management import call_command
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -82,3 +85,35 @@ class AgriculturalResourceApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 1)
         self.assertTrue(response.data["results"][0]["is_sample"])
+
+
+class SeedRiceCommandTests(APITestCase):
+    """Perintah seed untuk tanaman dan kelas model AI."""
+
+    def test_seed_creates_crop_and_classes(self):
+        """Semua kelas model terdaftar dan terhubung ke tanaman padi."""
+        call_command("seed_rice", stdout=StringIO())
+
+        crop = Crop.objects.get(code="padi")
+        disease_codes = set(Disease.objects.values_list("code", flat=True))
+        self.assertEqual(
+            disease_codes,
+            {
+                "padi-bacterial-blight",
+                "padi-sehat",
+                "padi-blast",
+                "padi-tungro",
+            },
+        )
+        self.assertEqual(Disease.objects.filter(crops=crop).count(), 4)
+        for disease in Disease.objects.all():
+            self.assertTrue(disease.source)
+
+    def test_seed_is_idempotent(self):
+        """Menjalankan seed dua kali tidak membuat data ganda."""
+        call_command("seed_rice", stdout=StringIO())
+        call_command("seed_rice", stdout=StringIO())
+
+        self.assertEqual(Crop.objects.count(), 1)
+        self.assertEqual(Disease.objects.count(), 4)
+        self.assertEqual(Crop.objects.get(code="padi").diseases.count(), 4)
